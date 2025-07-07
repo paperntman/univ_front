@@ -142,29 +142,28 @@ function applyDepartmentSelection() {
     const selectedMinorName = minorCategorySelect.value;
 
     let finalDisplayName: string | null = null;
-    let finalCode: string | null = null;
     let determinedCategory: DepartmentCategory | undefined = undefined;
 
     // Priority: Minor > Medium > Major, ensuring parent categories are also selected.
-    if (selectedMinorName && selectedMinorName !== "" && 
-        selectedMediumName && selectedMediumName !== "" && 
+    if (selectedMinorName && selectedMinorName !== "" &&
+        selectedMediumName && selectedMediumName !== "" &&
         selectedMajorName && selectedMajorName !== "") {
-        determinedCategory = DEPARTMENT_CATEGORIES.find(cat => 
-            cat.majorName === selectedMajorName && 
-            cat.mediumName === selectedMediumName && 
+        determinedCategory = DEPARTMENT_CATEGORIES.find(cat =>
+            cat.majorName === selectedMajorName &&
+            cat.mediumName === selectedMediumName &&
             cat.minorName === selectedMinorName
         );
         if (determinedCategory) {
             finalDisplayName = determinedCategory.minorName;
         }
-    } else if (selectedMediumName && selectedMediumName !== "" && 
+    } else if (selectedMediumName && selectedMediumName !== "" &&
                selectedMajorName && selectedMajorName !== "") {
         // User selected Major and Medium, but not Minor (or Minor was placeholder)
         // Look for the N.C.E. entry for this medium category, representing the medium category itself.
-        determinedCategory = DEPARTMENT_CATEGORIES.find(cat => 
-            cat.majorName === selectedMajorName && 
+        determinedCategory = DEPARTMENT_CATEGORIES.find(cat =>
+            cat.majorName === selectedMajorName &&
             cat.mediumName === selectedMediumName &&
-            cat.minorName === "N.C.E" 
+            cat.minorName === "N.C.E"
         );
         if (determinedCategory) {
             finalDisplayName = determinedCategory.mediumName; // Display the medium name itself
@@ -172,9 +171,9 @@ function applyDepartmentSelection() {
     } else if (selectedMajorName && selectedMajorName !== "") {
         // User selected Major only
         // Look for the N.C.E. medium and N.C.E. minor for this major.
-        determinedCategory = DEPARTMENT_CATEGORIES.find(cat => 
+        determinedCategory = DEPARTMENT_CATEGORIES.find(cat =>
             cat.majorName === selectedMajorName &&
-            cat.mediumName === "N.C.E" && 
+            cat.mediumName === "N.C.E" &&
             cat.minorName === "N.C.E"
         );
         if (determinedCategory) {
@@ -183,8 +182,7 @@ function applyDepartmentSelection() {
     }
 
     if (determinedCategory && finalDisplayName) {
-        finalCode = determinedCategory.majorCode + determinedCategory.mediumCode + determinedCategory.minorCode;
-        setSelectedDepartment(finalCode);
+        setSelectedDepartment(finalDisplayName);
     } else {
         setSelectedDepartment(null);
         const attemptedSelection = selectedMinorName || selectedMediumName || selectedMajorName;
