@@ -182,7 +182,8 @@ function applyDepartmentSelection() {
     }
 
     if (determinedCategory && finalDisplayName) {
-        setSelectedDepartment(finalDisplayName);
+        const departmentCode = determinedCategory.majorCode + determinedCategory.mediumCode + determinedCategory.minorCode;
+        setSelectedDepartment(departmentCode);
     } else {
         setSelectedDepartment(null);
         const attemptedSelection = selectedMinorName || selectedMediumName || selectedMajorName;
