@@ -133,8 +133,8 @@ export function getMarkerColorAndTooltipInfo(
             tooltipText += '<br>경쟁률 정보 없음';
         }
         universityData.forEach(u => {
-            if (u.admissionType) {
-                tooltipText += `<br>• ${u.admissionType}: ${u.overallCompetitionRate ? u.overallCompetitionRate + ' : 1' : '정보 없음'}`;
+            if (u.detailAdmissionType) {
+                tooltipText += `<br>• ${u.detailAdmissionType}: ${u.overallCompetitionRate ? u.overallCompetitionRate + ' : 1' : '정보 없음'}`;
             }
         });
     } else {
@@ -269,14 +269,14 @@ export function updateMarkers() {
 
     let groups: FilteredUniversity[][];
     const isCompetitionRateFilter = currentAdmissionTypeFilter === '경쟁률';
+    const typeKeyForMarkerLookup: { [key in AdmissionTypeFilterKey]?: keyof FilteredUniversityAdmissionResults } = {
+        '수능': 'suneung', '교과': 'gyogwa', '종합': 'jonghap'
+    };
 
     // 그룹핑 로직 (기존과 동일)
     if (isCompetitionRateFilter) {
         groups = groupBy(currentFilteredUniversities, u => `${u.universityName}|${u.departmentName}`);
     } else {
-        const typeKeyForMarkerLookup: { [key in AdmissionTypeFilterKey]?: keyof FilteredUniversityAdmissionResults } = {
-            '수능': 'suneung', '교과': 'gyogwa', '종합': 'jonghap'
-        };
         const typeKey = typeKeyForMarkerLookup[currentAdmissionTypeFilter];
         groups = groupBy(currentFilteredUniversities, u => `${u.universityName}|${u.departmentName}|${typeKey}`);
     }
@@ -288,19 +288,39 @@ export function updateMarkers() {
             console.warn(`University ${base.universityName} has invalid location data. Skipping marker.`);
             return;
         }
+
+        // =========================================================================
+        // 프론트엔드 점수차 필터링 로직
+        // =========================================================================
+        if (!isCompetitionRateFilter) {
+            const typeKey = typeKeyForMarkerLookup[currentAdmissionTypeFilter];
+            let diffs: number[] = [];
+            
+            group.forEach(u => {
+                const result = u.admissionTypeResults[typeKey as keyof FilteredUniversityAdmissionResults];
+                if (result && typeof result.userCalculatedScore === 'number' && typeof result.lastYearAvgConvertedScore === 'number') {
+                    diffs.push(result.userCalculatedScore - result.lastYearAvgConvertedScore);
+                }
+            });
+
+            // 비교할 점수 데이터가 없는 경우, 최대 허용치(8)가 아니면 숨김
+            if (diffs.length === 0) {
+                if (currentScoreDifferenceTolerance < 8) {
+                    return; // 마커를 생성하지 않고 건너뜀
+                }
+            } else {
+                const avgDiff = diffs.reduce((a, b) => a + b, 0) / diffs.length;
+                // 점수 차이의 절댓값이 허용치를 초과하면 숨김
+                if (Math.abs(avgDiff) > currentScoreDifferenceTolerance) {
+                    return; // 마커를 생성하지 않고 건너뜀
+                }
+            }
+        }
+        // =========================================================================
         
-        // 1. 색상과 툴팁 정보를 먼저 가져옴
+        // 필터링을 통과한 마커만 지도에 추가
         const { color, tooltipText } = getMarkerColorAndTooltipInfo(group, currentAdmissionTypeFilter);
 
-        // ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼
-        // 2. 새로운 필터링 조건 적용
-        // 성적 기반 필터이고, 편차 범위가 8이 아니고, 마커 색상이 회색(정보 없음)이면, 이 마커를 건너뜀
-        if (!isCompetitionRateFilter && currentScoreDifferenceTolerance !== 8 && color === INITIAL_MARKER_COLOR) {
-            return; // 마커를 지도에 추가하지 않고 다음 그룹으로 넘어감
-        }
-        // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
-
-        // 3. 필터링을 통과한 마커만 지도에 추가
         const markerHtml = createMarkerIconSVG(color);
         const icon = L.divIcon({
             html: markerHtml,

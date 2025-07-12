@@ -15,7 +15,9 @@ import {
     suneungExplorerSubjectsFromApi, suneungKoreanOptionsFromApi, suneungMathOptionsFromApi,
     // currentSuneungExamCutInfo, // Removed
     updateUserSuneungGrades,
-    initializeUserAllGrades as initializeGlobalUserAllGrades
+    initializeUserAllGrades as initializeGlobalUserAllGrades,
+    naesinInputMode, setNaesinInputMode, // 내신 모드 상태
+    simplifiedNaesinGrade, setSimplifiedNaesinGrade // 간편 내신 점수 상태
 } from './state';
 import {
     // fetchSuneungExamCutInfo as apiFetchSuneungExamCutInfo, // Removed
@@ -31,8 +33,14 @@ declare var XLSX: any;
 let gradeInputModal: HTMLDivElement | null = null;
 let modalTabsElements: NodeListOf<Element> | null = null;
 let modalTabContentsElements: NodeListOf<Element> | null = null;
+
+// 내신 관련 DOM 요소
+let naesinDetailedForm: HTMLDivElement | null = null;
 let naesinSubjectRowTemplate: HTMLTemplateElement | null = null;
 let naesinGradeFormDivs: { [key: string]: HTMLDivElement | null } = {};
+let naesinSimplifiedForm: HTMLDivElement | null = null;
+let naesinSimplifiedGradeInput: HTMLInputElement | null = null;
+let naesinModeRadios: NodeListOf<Element> | null = null;
 
 // 수능 관련 DOM 요소
 let suneungExamSelector: HTMLSelectElement | null = null;
@@ -57,8 +65,15 @@ export function initializeGradeModalDOM(elements: {
     gradeInputModal: HTMLDivElement,
     modalTabsElements: NodeListOf<Element>,
     modalTabContentsElements: NodeListOf<Element>,
+    // 상세 내신
+    naesinDetailedForm: HTMLDivElement,
     naesinSubjectRowTemplate: HTMLTemplateElement,
     naesinGradeFormDivs: { [key: string]: HTMLDivElement | null },
+    // 간편 내신
+    naesinSimplifiedForm: HTMLDivElement,
+    naesinSimplifiedGradeInput: HTMLInputElement,
+    naesinModeRadios: NodeListOf<Element>,
+    // 수능
     suneungExamSelector: HTMLSelectElement,
     suneungKoreanChoice: HTMLSelectElement, suneungKoreanRaw: HTMLInputElement,
     suneungMathChoice: HTMLSelectElement, suneungMathRaw: HTMLInputElement,
@@ -70,33 +85,71 @@ export function initializeGradeModalDOM(elements: {
     gradeInputModal = elements.gradeInputModal;
     modalTabsElements = elements.modalTabsElements;
     modalTabContentsElements = elements.modalTabContentsElements;
+    
+    // 내신
+    naesinDetailedForm = elements.naesinDetailedForm;
     naesinSubjectRowTemplate = elements.naesinSubjectRowTemplate;
     naesinGradeFormDivs = elements.naesinGradeFormDivs;
+    naesinSimplifiedForm = elements.naesinSimplifiedForm;
+    naesinSimplifiedGradeInput = elements.naesinSimplifiedGradeInput;
+    naesinModeRadios = elements.naesinModeRadios;
 
+    // 수능
     suneungExamSelector = elements.suneungExamSelector;
     suneungKoreanChoice = elements.suneungKoreanChoice;
     suneungKoreanRaw = elements.suneungKoreanRaw;
-    // suneungKoreanCalculatedDiv = elements.suneungKoreanCalculatedDiv; // Removed
     suneungMathChoice = elements.suneungMathChoice;
     suneungMathRaw = elements.suneungMathRaw;
-    // suneungMathCalculatedDiv = elements.suneungMathCalculatedDiv; // Removed
     suneungEnglishRaw = elements.suneungEnglishRaw;
-    // suneungEnglishCalculatedDiv = elements.suneungEnglishCalculatedDiv; // Removed
     suneungHistoryRaw = elements.suneungHistoryRaw;
-    // suneungHistoryCalculatedDiv = elements.suneungHistoryCalculatedDiv; // Removed
     suneungExplorer1Subject = elements.suneungExplorer1Subject;
     suneungExplorer1Raw = elements.suneungExplorer1Raw;
-    // suneungExplorer1CalculatedDiv = elements.suneungExplorer1CalculatedDiv; // Removed
     suneungExplorer2Subject = elements.suneungExplorer2Subject;
     suneungExplorer2Raw = elements.suneungExplorer2Raw;
-    // suneungExplorer2CalculatedDiv = elements.suneungExplorer2CalculatedDiv; // Removed
+
+    // 내신 모드 변경 이벤트 리스너
+    naesinModeRadios.forEach(radio => {
+        radio.addEventListener('change', handleNaesinModeChange);
+    });
+    // 간편 내신 입력 이벤트 리스너
+    if (naesinSimplifiedGradeInput) {
+        naesinSimplifiedGradeInput.addEventListener('input', collectSimplifiedNaesinGradeFromForm);
+    }
+}
+
+// 내신 입력 모드 변경 처리
+function handleNaesinModeChange(event: Event) {
+    const selectedMode = (event.target as HTMLInputElement).value as 'simplified' | 'detailed';
+    setNaesinInputMode(selectedMode);
+    updateNaesinFormVisibility();
+}
+
+// 현재 모드에 따라 폼 표시/숨김 업데이트
+function updateNaesinFormVisibility() {
+    if (naesinInputMode === 'simplified') {
+        naesinSimplifiedForm?.classList.remove('hidden');
+        naesinDetailedForm?.classList.add('hidden');
+    } else {
+        naesinSimplifiedForm?.classList.add('hidden');
+        naesinDetailedForm?.classList.remove('hidden');
+    }
 }
 
 export function openGradeModal() {
-    if (!gradeInputModal) return;
+    if (!gradeInputModal || !naesinSimplifiedGradeInput || !naesinModeRadios) return;
+
+    // 현재 상태에 맞게 UI 설정
+    (naesinModeRadios as NodeListOf<HTMLInputElement>).forEach(radio => {
+        radio.checked = radio.value === naesinInputMode;
+    });
+    updateNaesinFormVisibility();
+    
+    naesinSimplifiedGradeInput.value = simplifiedNaesinGrade?.toString() || '';
+
     populateSuneungSubjectDropdowns();
     renderNaesinGradesFromState();
-    renderSuneungGradesFromState(); // This will now only render raw scores
+    renderSuneungGradesFromState();
+    
     gradeInputModal.classList.remove('hidden');
     const firstTab = gradeInputModal.querySelector('.tab-button');
     if (firstTab && !firstTab.classList.contains('active')) {
@@ -340,6 +393,15 @@ export function renderNaesinGradesFromState() {
     });
     renderNaesinSemester(3, 1);
 }
+
+// 간편 내신 입력 필드의 값을 상태에 저장
+export function collectSimplifiedNaesinGradeFromForm() {
+    if (naesinSimplifiedGradeInput) {
+        const value = parseFloat(naesinSimplifiedGradeInput.value);
+        setSimplifiedNaesinGrade(isNaN(value) ? null : value);
+    }
+}
+
 
 export function renderSuneungGradesFromState() {
     const s = userAllGrades.suneung;
@@ -665,8 +727,18 @@ export async function loadNaesinGradesFromXlsFile(event: Event) {
 
             const newAllGrades = {...userAllGrades, naesin: newNaesinGrades };
             setUserAllGrades(newAllGrades);
+            
+            // 불러오기 후 '상세 입력' 모드로 전환
+            setNaesinInputMode('detailed');
+            updateNaesinFormVisibility();
+            if(naesinModeRadios) {
+                (naesinModeRadios as NodeListOf<HTMLInputElement>).forEach(radio => {
+                    radio.checked = radio.value === 'detailed';
+                });
+            }
+            
             renderNaesinGradesFromState();
-            alert("내신 성적을 XLS 파일에서 불러왔습니다.");
+            alert("내신 성적을 XLS 파일에서 불러왔습니다. '상세 입력' 모드로 전환되었습니다.");
         } catch (err) {
             console.error("Error processing XLS file:", err);
             alert("내신 성적 XLS 파일을 읽거나 적용하는 중 오류가 발생했습니다.");

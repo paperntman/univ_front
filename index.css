@@ -28,9 +28,43 @@ body {
     display: flex;
     flex-wrap: wrap; /* 작은 화면에서 아이템 줄 바꿈 허용 */
     gap: 10px; /* 네비게이션 아이템 간 간격 */
-    align-items: flex-end; /* 레이블과의 간격을 위해 아이템을 하단 정렬 */
+    align-items: center; /* 레이블과의 간격을 위해 아이템을 중앙 정렬 */
     border-bottom: 1px solid #e0e0e0; /* 하단 경계선 */
 }
+
+/* 접고 펴기 가능한 콘텐츠 래퍼 */
+#navbar-collapsible-content {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: flex-end; /* 컨트롤들은 하단 정렬 유지 */
+    flex-grow: 1;
+}
+
+/* 네비게이션 바가 접혔을 때의 상태 */
+#navbar.collapsed #navbar-collapsible-content {
+    display: none;
+}
+
+/* 네비게이션 바 접기/펴기 버튼 */
+#toggle-navbar-button {
+    padding: 7px 9px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 0.9em;
+    background-color: #e9ecef;
+    color: #333;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+    margin-left: auto; /* 버튼을 가장 오른쪽으로 밀어냄 */
+    flex-shrink: 0; /* 버튼이 줄어들지 않도록 함 */
+    align-self: center;
+}
+
+#toggle-navbar-button:hover {
+    background-color: #dee2e6;
+}
+
 
 .nav-section {
     display: flex;
@@ -446,6 +480,42 @@ body {
 }
 
 /* --- 내신 성적 입력 폼 스타일 --- */
+.naesin-mode-selector { /* 간편/상세 입력 선택기 */
+    display: flex;
+    gap: 20px;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #eee;
+    align-items: center;
+}
+.naesin-mode-selector label {
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+#naesin-simplified-form { /* 간편 입력 폼 */
+    padding: 15px;
+    border: 1px solid #e0e0e0;
+    border-radius: 5px;
+    background-color: #f9f9f9;
+}
+#naesin-simplified-form.hidden, #naesin-detailed-form.hidden {
+    display: none;
+}
+#naesin-simplified-form label {
+    font-weight: bold;
+    margin-right: 10px;
+}
+#naesin-simplified-form input {
+    padding: 6px 8px;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+    font-size: 1em;
+    width: 100px;
+}
+
 #naesin-grades-form fieldset { /* 학년별 그룹 */
     border: 1px solid #ddd;
     border-radius: 4px;
@@ -620,6 +690,20 @@ body {
         align-items: stretch; /* 아이템 가로로 꽉 채움 */
         padding: 10px;
     }
+    
+    #navbar-collapsible-content {
+        flex-direction: column;
+        align-items: stretch;
+        width: 100%;
+    }
+
+    #toggle-navbar-button {
+        position: absolute; /* 작은 화면에서는 위치를 절대적으로 조정 */
+        top: 15px;
+        right: 15px;
+        margin-left: 0; /* 자동 마진 제거 */
+    }
+
     .nav-section {
         width: 100%;
     }

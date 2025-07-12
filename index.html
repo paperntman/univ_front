@@ -9,11 +9,23 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
           integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
           crossorigin=""/>
-    <!-- Leaflet JS -->
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="index.css">
+    <!-- Leaflet JavaScript -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
             integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
             crossorigin=""></script>
-    <link rel="stylesheet" href="/index.css">
+    <!-- SheetJS (xlsx) library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- Import map for @google/genai -->
+<script type="importmap">
+{
+  "imports": {
+    "@google/genai": "https://esm.sh/@google/genai@^1.1.0"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
 </head>
 <body>
     <!-- 전체 애플리케이션 컨테이너 -->
@@ -24,41 +36,54 @@
             <div class="nav-section">
                 <h2>대학 입시 정보</h2>
             </div>
-            <!-- 학과 검색 버튼 섹션 -->
-            <div class="nav-section">
-                <label for="open-department-select-modal-button" class="structural-placeholder-label">&nbsp;</label> <!-- 구조적 정렬용 보이지 않는 레이블 -->
-                <button id="open-department-select-modal-button">학과 검색</button>
-                <div class="form-element-spacer"></div> <!-- 레이아웃 정렬용 스페이서 -->
+            
+            <!-- 접고 펴기 가능한 컨트롤들을 위한 래퍼 -->
+            <div id="navbar-collapsible-content">
+                <!-- 학과 검색 버튼 섹션 -->
+                <div class="nav-section">
+                    <label for="open-department-select-modal-button" class="structural-placeholder-label">&nbsp;</label> <!-- 구조적 정렬용 보이지 않는 레이블 -->
+                    <button id="open-department-select-modal-button">학과 검색</button>
+                    <div class="form-element-spacer"></div> <!-- 레이아웃 정렬용 스페이서 -->
+                </div>
+                <!-- 성적 입력 버튼 섹션 -->
+                <div class="nav-section">
+                     <label for="enter-grades-button" class="structural-placeholder-label">&nbsp;</label> <!-- 구조적 정렬용 보이지 않는 레이블 -->
+                    <button id="enter-grades-button">성적 입력</button>
+                     <div class="form-element-spacer"></div> <!-- 레이아웃 정렬용 스페이서 -->
+                </div>
+                <!-- 입시 전형 필터 섹션 -->
+                <div class="nav-section input-group">
+                    <label for="admission-type-filter">입시 전형 필터:</label>
+                    <select id="admission-type-filter">
+                        <option value="경쟁률">경쟁률</option>
+                        <option value="수능">수능</option>
+                        <option value="종합">종합</option>
+                        <option value="교과">교과</option>
+                    </select>
+                    <div class="form-element-spacer"></div> <!-- 레이아웃 정렬용 스페이서 -->
+                </div>
+                <!-- 점수차 허용치 섹션 -->
+                <div class="nav-section input-group">
+                    <label for="score-difference-tolerance">점수차 허용치 (대학별 환산점수 기준):</label>
+                    <input type="number" id="score-difference-tolerance" min="0" max="100" step="1" value="10">
+                     <input type="range" id="score-difference-tolerance-slider" min="0" max="100" step="1" value="10">
+                </div>
+                <!-- 세부 전형 필터 섹션 -->
+                <div class="nav-section input-group">
+                    <label for="detailed-admission-filter">세부 전형 필터:</label>
+                    <input type="text" id="detailed-admission-filter" placeholder="예: 교과 지역">
+                    <div class="form-element-spacer"></div> <!-- 레이아웃 정렬용 스페이서 -->
+                </div>
+                <!-- 필터 적용 버튼 섹션 -->
+                 <div class="nav-section" id="apply-filters-button-section">
+                    <label for="apply-filters-button" class="structural-placeholder-label">&nbsp;</label> <!-- 구조적 정렬용 보이지 않는 레이블 -->
+                    <button id="apply-filters-button" aria-label="Apply all filters and update map">필터 적용 및 지도 업데이트</button>
+                    <div class="form-element-spacer"></div> <!-- 구조적 정렬용 보이지 않는 레이블 -->
+                </div>
             </div>
-            <!-- 성적 입력 버튼 섹션 -->
-            <div class="nav-section">
-                 <label for="enter-grades-button" class="structural-placeholder-label">&nbsp;</label> <!-- 구조적 정렬용 보이지 않는 레이블 -->
-                <button id="enter-grades-button">성적 입력</button>
-                 <div class="form-element-spacer"></div> <!-- 레이아웃 정렬용 스페이서 -->
-            </div>
-            <!-- 입시 전형 필터 섹션 -->
-            <div class="nav-section input-group">
-                <label for="admission-type-filter">입시 전형 필터:</label>
-                <select id="admission-type-filter">
-                    <option value="경쟁률">경쟁률</option>
-                    <option value="수능">수능</option>
-                    <option value="종합">종합</option>
-                    <option value="교과">교과</option>
-                </select>
-                <div class="form-element-spacer"></div> <!-- 레이아웃 정렬용 스페이서 -->
-            </div>
-            <!-- 점수차 허용치 섹션 -->
-            <div class="nav-section input-group">
-                <label for="score-difference-tolerance">내신 성적 편차 범위 (0.0~8.0):</label>
-                <input type="number" id="score-difference-tolerance" min="0.0" max="8.0" step="0.1" value="0.5">
-                <input type="range" id="score-difference-tolerance-slider" min="0.0" max="8.0" step="0.1" value="0.5">
-            </div>
-            <!-- 필터 적용 버튼 섹션 -->
-             <div class="nav-section" id="apply-filters-button-section">
-                <label for="apply-filters-button" class="structural-placeholder-label">&nbsp;</label> <!-- 구조적 정렬용 보이지 않는 레이블 -->
-                <button id="apply-filters-button" aria-label="Apply all filters and update map">필터 적용 및 지도 업데이트</button>
-                <div class="form-element-spacer"></div> <!-- 구조적 정렬용 보이지 않는 레이블 -->
-            </div>
+
+            <!-- 네비게이션 바 접기/펴기 버튼 -->
+            <button id="toggle-navbar-button" aria-label="메뉴 접기" aria-expanded="true">▲ 접기</button>
         </nav>
 
         <!-- 메인 콘텐츠 영역 (지도와 사이드바) -->
@@ -137,45 +162,65 @@
             <!-- 내신 성적 입력 탭 콘텐츠 -->
             <div id="naesin-tab" class="tab-content active">
                 <h4>내신 성적 입력</h4>
-                <div id="naesin-grades-form">
-                    <!-- 1학년 -->
-                    <fieldset>
-                        <legend>1학년</legend>
-                        <div class="naesin-semester-container">
-                            <h5>1학기</h5>
-                            <div id="naesin-y1s1-subjects" class="subjects-container"></div> <!-- 1학년 1학기 과목 목록 -->
-                            <button class="add-subject-button" data-year="1" data-semester="1">+ 과목 추가</button>
-                        </div>
-                        <div class="naesin-semester-container">
-                            <h5>2학기</h5>
-                            <div id="naesin-y1s2-subjects" class="subjects-container"></div> <!-- 1학년 2학기 과목 목록 -->
-                            <button class="add-subject-button" data-year="1" data-semester="2">+ 과목 추가</button>
-                        </div>
-                    </fieldset>
-                     <!-- 2학년 -->
-                    <fieldset>
-                        <legend>2학년</legend>
-                        <div class="naesin-semester-container">
-                            <h5>1학기</h5>
-                            <div id="naesin-y2s1-subjects" class="subjects-container"></div> <!-- 2학년 1학기 과목 목록 -->
-                            <button class="add-subject-button" data-year="2" data-semester="1">+ 과목 추가</button>
-                        </div>
-                        <div class="naesin-semester-container">
-                            <h5>2학기</h5>
-                            <div id="naesin-y2s2-subjects" class="subjects-container"></div> <!-- 2학년 2학기 과목 목록 -->
-                            <button class="add-subject-button" data-year="2" data-semester="2">+ 과목 추가</button>
-                        </div>
-                    </fieldset>
-                     <!-- 3학년 -->
-                    <fieldset>
-                        <legend>3학년</legend>
-                        <div class="naesin-semester-container">
-                            <h5>1학기</h5>
-                            <div id="naesin-y3s1-subjects" class="subjects-container"></div> <!-- 3학년 1학기 과목 목록 -->
-                            <button class="add-subject-button" data-year="3" data-semester="1">+ 과목 추가</button>
-                        </div>
-                        <!-- 3학년 2학기 부분은 일반적으로 수시 전형에 반영되지 않아 UI에서 제거됨 -->
-                    </fieldset>
+                
+                <!-- 내신 입력 방식 선택 -->
+                <div class="naesin-mode-selector">
+                    <label>
+                        <input type="radio" name="naesin-mode" value="simplified" checked> 간편 입력
+                    </label>
+                    <label>
+                        <input type="radio" name="naesin-mode" value="detailed"> 상세 입력
+                    </label>
+                </div>
+
+                <!-- 간편 내신 입력 폼 -->
+                <div id="naesin-simplified-form">
+                    <label for="naesin-simplified-grade-input">평균 내신 등급:</label>
+                    <input type="number" id="naesin-simplified-grade-input" placeholder="예: 1.7" step="0.01" min="1" max="9">
+                </div>
+
+                <!-- 상세 내신 입력 폼 (기존 폼을 div로 감쌈) -->
+                <div id="naesin-detailed-form" class="hidden">
+                    <div id="naesin-grades-form">
+                        <!-- 1학년 -->
+                        <fieldset>
+                            <legend>1학년</legend>
+                            <div class="naesin-semester-container">
+                                <h5>1학기</h5>
+                                <div id="naesin-y1s1-subjects" class="subjects-container"></div> <!-- 1학년 1학기 과목 목록 -->
+                                <button class="add-subject-button" data-year="1" data-semester="1">+ 과목 추가</button>
+                            </div>
+                            <div class="naesin-semester-container">
+                                <h5>2학기</h5>
+                                <div id="naesin-y1s2-subjects" class="subjects-container"></div> <!-- 1학년 2학기 과목 목록 -->
+                                <button class="add-subject-button" data-year="1" data-semester="2">+ 과목 추가</button>
+                            </div>
+                        </fieldset>
+                        <!-- 2학년 -->
+                        <fieldset>
+                            <legend>2학년</legend>
+                            <div class="naesin-semester-container">
+                                <h5>1학기</h5>
+                                <div id="naesin-y2s1-subjects" class="subjects-container"></div> <!-- 2학년 1학기 과목 목록 -->
+                                <button class="add-subject-button" data-year="2" data-semester="1">+ 과목 추가</button>
+                            </div>
+                            <div class="naesin-semester-container">
+                                <h5>2학기</h5>
+                                <div id="naesin-y2s2-subjects" class="subjects-container"></div> <!-- 2학년 2학기 과목 목록 -->
+                                <button class="add-subject-button" data-year="2" data-semester="2">+ 과목 추가</button>
+                            </div>
+                        </fieldset>
+                        <!-- 3학년 -->
+                        <fieldset>
+                            <legend>3학년</legend>
+                            <div class="naesin-semester-container">
+                                <h5>1학기</h5>
+                                <div id="naesin-y3s1-subjects" class="subjects-container"></div> <!-- 3학년 1학기 과목 목록 -->
+                                <button class="add-subject-button" data-year="3" data-semester="1">+ 과목 추가</button>
+                            </div>
+                            <!-- 3학년 2학기 부분은 일반적으로 수시 전형에 반영되지 않아 UI에서 제거됨 -->
+                        </fieldset>
+                    </div>
                 </div>
             </div>
 
@@ -301,9 +346,8 @@
         </div>
     </template>
 
-    <!-- SheetJS (XLSX) 라이브러리 -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <!-- 메인 TypeScript 모듈 -->
-    <script type="module" src="/index.tsx"></script>
+    <script type="module" src="index.tsx"></script>
+<script type="module" src="/index.tsx"></script>
 </body>
 </html>

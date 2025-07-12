@@ -59,6 +59,19 @@ export function setLastOpenedUniversityId(id: string | null) { // 마지막으�
 
 
 // --- 성적 관련 상태 ---
+
+// 내신 입력 방식 상태
+export let naesinInputMode: 'simplified' | 'detailed' = 'simplified';
+export function setNaesinInputMode(mode: 'simplified' | 'detailed') {
+    naesinInputMode = mode;
+}
+
+// 간편 입력 시 내신 평균 등급
+export let simplifiedNaesinGrade: number | null = null;
+export function setSimplifiedNaesinGrade(grade: number | null) {
+    simplifiedNaesinGrade = grade;
+}
+
 // UserNaesinSubject에 필드가 추가되었으므로, 초기화 시 해당 필드도 null 또는 기본값으로 설정해야 합니다.
 // createInitialNaesinSubject 함수를 만들어 사용하는 것이 좋을 수 있으나, 현재는 addNaesinSubjectRow에서 처리.
 function createInitialNaesinSemester(): UserNaesinSemesterData { // 초기 내신 학기 데이터 생성

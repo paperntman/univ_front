@@ -18,6 +18,12 @@ import {
     setCurriculumClassificationsFromApi
 } from './state';
 
+// --- API 호출 캐싱 ---
+// 내신 파일 로드 시 발생하는 중복 API 호출을 방지하기 위한 캐시
+const curriculumsCache = new Map<string, ApiSubjectInfo[]>();
+const subjectsCache = new Map<string, ApiSubjectInfo[]>();
+
+
 // Helper function to handle fetch responses
 async function handleResponse<T>(response: Response, errorMessage: string): Promise<T | null> {
     if (!response.ok) {
@@ -72,14 +78,28 @@ export async function fetchCurriculumClassificationsApi(): Promise<ApiSubjectInf
     return fetchGenericSubjectList("naesin_curriculum_classifications");
 }
 
-// 특정 교과구분종류에 해당하는 교과 목록 가져오기
+// 특정 교과구분종류에 해당하는 교과 목록 가져오기 (캐싱 적용)
 export async function fetchCurriculumsForClassificationApi(classificationCode: string): Promise<ApiSubjectInfo[]> {
-    return fetchGenericSubjectList("naesin_curriculums_for_classification", { classificationCode });
+    if (curriculumsCache.has(classificationCode)) {
+        return Promise.resolve(curriculumsCache.get(classificationCode)!);
+    }
+    const result = await fetchGenericSubjectList("naesin_curriculums_for_classification", { classificationCode });
+    if (result && result.length > 0) {
+        curriculumsCache.set(classificationCode, result);
+    }
+    return result;
 }
 
-// 특정 교과 영역에 해당하는 과목 목록 가져오기
+// 특정 교과 영역에 해당하는 과목 목록 가져오기 (캐싱 적용)
 export async function fetchSubjectsForCurriculumApi(curriculumCode: string): Promise<ApiSubjectInfo[]> {
-    return fetchGenericSubjectList("naesin_subjects_for_curriculum", { curriculumCode });
+     if (subjectsCache.has(curriculumCode)) {
+        return Promise.resolve(subjectsCache.get(curriculumCode)!);
+    }
+    const result = await fetchGenericSubjectList("naesin_subjects_for_curriculum", { curriculumCode });
+    if (result && result.length > 0) {
+        subjectsCache.set(curriculumCode, result);
+    }
+    return result;
 }
 
 // 모든 내신 과목의 원시 목록 가져오기 (필터링 전)

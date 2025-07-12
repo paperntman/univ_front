@@ -17,7 +17,8 @@ import {
     currentScoreDifferenceTolerance, setCurrentScoreDifferenceTolerance,
     currentSidebarData, lastOpenedUniversityId,
     map, markersLayerGroup,
-    currentFilteredUniversities, setCurrentFilteredUniversities
+    currentFilteredUniversities, setCurrentFilteredUniversities,
+    naesinInputMode, simplifiedNaesinGrade // 간편 입력 모드 관련 상태 추가
 } from './state';
 
 // API 유틸리티 임포트
@@ -35,7 +36,8 @@ import {
     addNaesinSubjectRow, populateSuneungSubjectDropdowns,
     saveSuneungGradesToJsonFile, loadSuneungGradesFromJsonFile, // 이름 변경됨
     saveNaesinGradesToXlsFile, loadNaesinGradesFromXlsFile, // XLS용 함수 추가
-    collectSuneungGradesFromForm
+    collectSuneungGradesFromForm,
+    collectSimplifiedNaesinGradeFromForm // 간편 내신 점수 수집 함수 추가
 } from './gradeModalUtils';
 
 // UI 유틸리티 임포트
@@ -43,6 +45,9 @@ import { initializeUiUtilsDOM, showLoading } from './uiUtils';
 
 
 // --- DOM 요소 ---
+const navbarEl = document.getElementById('navbar') as HTMLElement;
+const toggleNavbarButtonEl = document.getElementById('toggle-navbar-button') as HTMLButtonElement;
+
 // 학과 검색 관련: 기존 input과 suggestions div는 제거되고, 새 모달 관련 요소들 추가
 const openDepartmentSearchModalButtonEl = document.getElementById('open-department-select-modal-button') as HTMLButtonElement;
 const departmentSelectModalEl = document.getElementById('department-select-modal') as HTMLDivElement;
@@ -57,6 +62,7 @@ const enterGradesButtonEl = document.getElementById('enter-grades-button') as HT
 const admissionTypeFilterSelectEl = document.getElementById('admission-type-filter') as HTMLSelectElement; 
 const scoreDifferenceToleranceInputEl = document.getElementById('score-difference-tolerance') as HTMLInputElement; 
 const scoreDifferenceToleranceSliderEl = document.getElementById('score-difference-tolerance-slider') as HTMLInputElement; 
+const detailedAdmissionFilterEl = document.getElementById('detailed-admission-filter') as HTMLInputElement; // 세부 전형 필터
 const applyFiltersButtonEl = document.getElementById('apply-filters-button') as HTMLButtonElement; 
 
 const mapDivEl = document.getElementById('map') as HTMLDivElement; 
@@ -82,6 +88,8 @@ const modalTabsEl = gradeInputModalEl.querySelectorAll('.tab-button');
 const modalTabContentsEl = gradeInputModalEl.querySelectorAll('.tab-content'); 
 const submitGradesButtonEl = document.getElementById('submit-grades-button') as HTMLButtonElement; 
 
+// 상세 내신 입력 관련
+const naesinDetailedFormEl = document.getElementById('naesin-detailed-form') as HTMLDivElement;
 const naesinSubjectRowTemplateEl = document.getElementById('naesin-subject-row-template') as HTMLTemplateElement; 
 const naesinGradeFormDivsEls = { 
     y1s1: document.getElementById('naesin-y1s1-subjects') as HTMLDivElement,
@@ -91,6 +99,11 @@ const naesinGradeFormDivsEls = {
     y3s1: document.getElementById('naesin-y3s1-subjects') as HTMLDivElement,
     y3s2: document.getElementById('naesin-y3s2-subjects') as HTMLDivElement, 
 };
+// 간편 내신 입력 관련
+const naesinSimplifiedFormEl = document.getElementById('naesin-simplified-form') as HTMLDivElement;
+const naesinSimplifiedGradeInputEl = document.getElementById('naesin-simplified-grade-input') as HTMLInputElement;
+const naesinModeRadiosEl = gradeInputModalEl.querySelectorAll('input[name="naesin-mode"]');
+
 
 const suneungExamSelectorEl = document.getElementById('suneung-exam-selector') as HTMLSelectElement; 
 const suneungKoreanChoiceEl = document.getElementById('suneung-korean-choice') as HTMLSelectElement; 
@@ -227,8 +240,33 @@ async function handleFilterUpdate() {
     let suneungPayloadForApi: ApiSuneungGradesPayload = { examIdentifierForCutInfo: '', subjects: {} };
     if (currentAdmissionTypeFilter !== '경쟁률') {
         collectSuneungGradesFromForm();
-        naesinPayloadForApi = transformNaesinGradesForApi(userAllGrades.naesin);
-        const suneungHasInput = Object.values(userAllGrades.suneung.subjects || {}).some(v => v !== undefined && v !== null && v !== '');
+
+        // 내신 입력 모드에 따라 페이로드 생성
+        if (naesinInputMode === 'simplified') {
+            if (simplifiedNaesinGrade === null) {
+                alert('간편 내신 평균 등급을 입력해주세요.');
+                return;
+            }
+            // 사용자 요청에 따른 더미 내신 데이터 생성
+            naesinPayloadForApi = {
+                "1-1": [{
+                    curriculumClassificationCode: "CLASS_COMMON_SELECT",
+                    curriculumClassificationName: "일반선택",
+                    curriculumAreaCode: "CURR_COMMON_KOR_SELECT",
+                    curriculumAreaName: "국어",
+                    subjectCode: "NAESIN_국어Ⅰ",
+                    subjectName: "국어Ⅰ",
+                    grade: 1, // API 요청용 더미 등급 (서버에서 환산점수 계산에 사용)
+                    credits: 1,
+                    rawScore: null, subjectMean: null, stdDev: null, studentCount: null, achievementLevel: null,
+                    distributionA: null, distributionB: null, distributionC: null
+                }]
+            };
+        } else { // 'detailed' mode
+             naesinPayloadForApi = transformNaesinGradesForApi(userAllGrades.naesin);
+        }
+
+        const suneungHasInput = Object.values(userAllGrades.suneung.subjects || {}).some(v => v && (v.rawScore !== null && v.rawScore !== undefined));
         if (currentAdmissionTypeFilter === '수능' && !suneungHasInput) {
             setCurrentFilteredUniversities([]);
             updateMarkers();
@@ -249,11 +287,45 @@ async function handleFilterUpdate() {
             filterCriteria: {
                 departmentKeywords: selectedDepartment,
                 admissionType: currentAdmissionTypeFilter,
-                scoreDifferenceTolerance: currentScoreDifferenceTolerance
+                scoreDifferenceTolerance: 8 // 항상 8(최대값)으로 고정하여 API 요청
             }
         };
         console.log('Sending to /universities/filter:', JSON.stringify(requestPayload, null, 2));
-        const responseData = await fetchFilteredUniversitiesApi(requestPayload);
+        let responseData = await fetchFilteredUniversitiesApi(requestPayload);
+
+        // Client-side filtering based on detailed admission filter
+        const detailedFilterValue = detailedAdmissionFilterEl.value.trim();
+        if (detailedFilterValue && responseData) {
+            const keywords = detailedFilterValue.split(' ').filter(k => k.trim() !== '');
+            if (keywords.length > 0) {
+                responseData = responseData.filter(uni => {
+                    // The field for detailed admission type name is `detailAdmissionType` in the `FilteredUniversity` type
+                    if (!uni.detailAdmissionType) return false;
+                    
+                    // Check if uni.detailAdmissionType contains ALL keywords
+                    return keywords.every(keyword => uni.detailAdmissionType.includes(keyword));
+                });
+            }
+        }
+
+        // 간편 입력 모드일 경우, API 응답의 userCalculatedScore를 사용자가 입력한 값으로 덮어쓰기
+        if (naesinInputMode === 'simplified' && simplifiedNaesinGrade !== null && responseData) {
+            responseData = responseData.map(uni => {
+                const updatedUni = { ...uni };
+                const typesToUpdate: (keyof typeof updatedUni.admissionTypeResults)[] = ['gyogwa', 'jonghap'];
+                
+                typesToUpdate.forEach(type => {
+                    if (updatedUni.admissionTypeResults[type]) {
+                        // userCalculatedScore를 사용자가 입력한 간편 점수로 덮어씌운다.
+                         updatedUni.admissionTypeResults[type]!.userCalculatedScore = simplifiedNaesinGrade!;
+                    }
+                });
+                return updatedUni;
+            });
+            console.log("Overwrote userCalculatedScore with simplified grade:", simplifiedNaesinGrade);
+        }
+
+
         if(responseData && Array.isArray(responseData)) {
             setCurrentFilteredUniversities(responseData);
         } else {
@@ -289,8 +361,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         gradeInputModal: gradeInputModalEl,
         modalTabsElements: modalTabsEl,
         modalTabContentsElements: modalTabContentsEl,
+        // 상세 내신
+        naesinDetailedForm: naesinDetailedFormEl,
         naesinSubjectRowTemplate: naesinSubjectRowTemplateEl,
         naesinGradeFormDivs: naesinGradeFormDivsEls,
+        // 간편 내신
+        naesinSimplifiedForm: naesinSimplifiedFormEl,
+        naesinSimplifiedGradeInput: naesinSimplifiedGradeInputEl,
+        naesinModeRadios: naesinModeRadiosEl,
+        // 수능
         suneungExamSelector: suneungExamSelectorEl,
         suneungKoreanChoice: suneungKoreanChoiceEl, suneungKoreanRaw: suneungKoreanRawEl, 
         suneungMathChoice: suneungMathChoiceEl, suneungMathRaw: suneungMathRawEl, 
@@ -308,13 +387,30 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     populateSuneungSubjectDropdowns(); 
 
-    // 슬라이더/입력값 동기화 범위 0.0~8.0, step 0.1로 변경. 전형 필터 변경 시 마커 자동 갱신 제거
-    // 슬라이더/입력 엘리먼트 초기화
+    // 네비게이션 바 접기/펴기 버튼 이벤트 리스너
+    if (toggleNavbarButtonEl && navbarEl) {
+        toggleNavbarButtonEl.addEventListener('click', () => {
+            const isExpanded = toggleNavbarButtonEl.getAttribute('aria-expanded') === 'true';
+            navbarEl.classList.toggle('collapsed');
+            if (isExpanded) {
+                // 현재 확장 상태 -> 축소
+                toggleNavbarButtonEl.setAttribute('aria-expanded', 'false');
+                toggleNavbarButtonEl.innerHTML = '▼ 펴기';
+                toggleNavbarButtonEl.setAttribute('aria-label', '메뉴 펴기');
+            } else {
+                // 현재 축소 상태 -> 확장
+                toggleNavbarButtonEl.setAttribute('aria-expanded', 'true');
+                toggleNavbarButtonEl.innerHTML = '▲ 접기';
+                toggleNavbarButtonEl.setAttribute('aria-label', '메뉴 접기');
+            }
+        });
+    }
+
+    // 슬라이더/입력값 동기화 범위 0.0~8.0, step 0.1로 변경.
     scoreDifferenceToleranceInputEl.value = currentScoreDifferenceTolerance.toString();
     scoreDifferenceToleranceSliderEl.value = currentScoreDifferenceTolerance.toString();
     admissionTypeFilterSelectEl.value = currentAdmissionTypeFilter;
 
-    // 슬라이더/입력 동기화 (0.0~8.0, step 0.1)
     scoreDifferenceToleranceInputEl.setAttribute('min', '0.0');
     scoreDifferenceToleranceInputEl.setAttribute('max', '8.0');
     scoreDifferenceToleranceInputEl.setAttribute('step', '0.1');
@@ -327,36 +423,58 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!isNaN(value) && value >= 0 && value <= 8) {
             setCurrentScoreDifferenceTolerance(value);
             scoreDifferenceToleranceSliderEl.value = value.toString();
+            updateMarkers(); // 프론트엔드 필터링 적용
         } else {
             (e.target as HTMLInputElement).value = currentScoreDifferenceTolerance.toString();
             alert('유효한 내신 성적 범위를 입력해주세요 (0.0 ~ 8.0).');
         }
     });
+
+    // 사용자가 슬라이더를 드래그하는 동안 숫자 입력을 시각적으로 업데이트합니다 (UX 개선).
+    // 이 이벤트는 상태를 변경하거나 지도를 업데이트하지 않습니다.
     scoreDifferenceToleranceSliderEl.addEventListener('input', (e) => {
+        scoreDifferenceToleranceInputEl.value = (e.target as HTMLInputElement).value;
+    });
+
+    // 사용자가 슬라이더에서 마우스를 떼었을 때 실제 상태 업데이트와 지도 필터링을 트리거합니다.
+    scoreDifferenceToleranceSliderEl.addEventListener('change', (e) => {
         const value = parseFloat((e.target as HTMLInputElement).value);
         setCurrentScoreDifferenceTolerance(value);
-        scoreDifferenceToleranceInputEl.value = value.toString();
+        updateMarkers(); // 프론트엔드 필터링 적용
     });
+
 
     admissionTypeFilterSelectEl.addEventListener('change', (e) => {
         setCurrentAdmissionTypeFilter((e.target as HTMLSelectElement).value as AdmissionTypeFilterKey);
+        // 전형 필터 변경 시에는 API를 다시 호출해야 하므로 '필터 적용' 버튼을 누르도록 유도.
+        // 마커 자동 갱신은 하지 않음.
         if (sidebarDivEl.classList.contains('visible') && currentSidebarData && lastOpenedUniversityId) {
             openSidebar(lastOpenedUniversityId, currentSidebarData.departmentName);
         } else if (currentSidebarData) {
             renderSidebarContentUtil();
         }
-        // updateMarkers(); // 자동 갱신 제거
     });
+
 
     // 필터 적용 및 지도 업데이트 버튼에만 handleFilterUpdate 연결
     applyFiltersButtonEl.addEventListener('click', handleFilterUpdate); 
+    
+    // 세부 전형 필터 이벤트 리스너 추가
+    detailedAdmissionFilterEl.addEventListener('change', handleFilterUpdate);
+    detailedAdmissionFilterEl.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault(); // 기본 동작(폼 제출 등) 방지
+            handleFilterUpdate();
+        }
+    });
 
     closeGradeModalButtonEl.addEventListener('click', closeGradeModal); 
     submitGradesButtonEl.addEventListener('click', () => { 
-        // 수능 점수는 실시간으로 collectSuneungGradesFromForm()을 통해 userAllGrades.suneung에 반영됨.
-        // 내신 성적도 각 입력 필드의 이벤트 리스너를 통해 userAllGrades.naesin에 실시간 반영됨.
-        // 따라서 이 버튼 클릭 시에는 추가적인 수집 없이 모달만 닫습니다.
-        // handleFilterUpdate 호출 시점에 필요한 전형에 따라 수능 점수를 다시 한 번 수집.
+        // 현재 활성화된 입력 방식에 따라 점수를 상태에 저장
+        collectSimplifiedNaesinGradeFromForm(); // 간편 입력 값 수집 (UI에 없어도 값은 읽음)
+        collectSuneungGradesFromForm(); // 수능 점수 수집
+        // 상세 내신은 입력 시 실시간으로 반영되므로 별도 수집 불필요
+        
         closeGradeModal();
         alert("성적이 반영되었습니다. '필터 적용 및 지도 업데이트' 버튼을 클릭하여 결과를 확인하세요.");
     });
@@ -373,16 +491,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     modalTabsEl.forEach(tab => tab.addEventListener('click', handleGradeModalTabClick)); 
 
-    gradeInputModalEl.querySelectorAll('.add-subject-button').forEach(button => {
-        button.addEventListener('click', (e) => {
-            const target = e.target as HTMLElement;
-            const year = parseInt(target.dataset.year!) as 1 | 2 | 3;
-            const semester = parseInt(target.dataset.semester!) as 1 | 2;
-            if (year && semester) {
-                addNaesinSubjectRow(year, semester);
-            }
+    if (naesinDetailedFormEl) {
+        naesinDetailedFormEl.querySelectorAll('.add-subject-button').forEach(button => {
+            button.addEventListener('click', (e) => {
+                const target = e.target as HTMLElement;
+                const year = parseInt(target.dataset.year!) as 1 | 2 | 3;
+                const semester = parseInt(target.dataset.semester!) as 1 | 2;
+                if (year && semester) {
+                    addNaesinSubjectRow(year, semester);
+                }
+            });
         });
-    });
+    }
+
     
     suneungExamSelectorEl.addEventListener('change', async () => {
         if (suneungExamSelectorEl) {
