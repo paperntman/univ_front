@@ -30,6 +30,7 @@ body {
     gap: 10px; /* 네비게이션 아이템 간 간격 */
     align-items: center; /* 레이블과의 간격을 위해 아이템을 중앙 정렬 */
     border-bottom: 1px solid #e0e0e0; /* 하단 경계선 */
+    position: relative; /* 자식의 absolute 위치 기준 */
 }
 
 /* 접고 펴기 가능한 콘텐츠 래퍼 */
@@ -689,19 +690,34 @@ body {
         flex-direction: column;
         align-items: stretch; /* 아이템 가로로 꽉 채움 */
         padding: 10px;
+        padding-top: 50px; /* 버튼을 위한 공간 확보 */
+        gap: 5px; /* 항목 간 세로 간격 축소 */
     }
     
     #navbar-collapsible-content {
         flex-direction: column;
         align-items: stretch;
         width: 100%;
+        gap: 5px; /* 항목 간 세로 간격 축소 */
     }
 
     #toggle-navbar-button {
         position: absolute; /* 작은 화면에서는 위치를 절대적으로 조정 */
-        top: 15px;
-        right: 15px;
+        top: 8px;
+        right: 8px;
         margin-left: 0; /* 자동 마진 제거 */
+        width: 32px; /* 정사각형 모양 - 너비 */
+        height: 32px; /* 정사각형 모양 - 높이 */
+        padding: 0; /* 패딩 제거 */
+        font-size: 1.2em; /* 아이콘 폰트 크기 조정 */
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1002;
+    }
+
+    #toggle-navbar-button span {
+        display: none; /* '접기'/'펴기' 텍스트 숨김 */
     }
 
     .nav-section {
@@ -716,8 +732,10 @@ body {
          width: 100%; /* 너비 100% */
     }
 
-    .form-element-spacer {
-        /* display: none;  작은 화면에서 레이아웃이 잘 압축되면 스페이서 숨김 */
+    /* 작은 화면에서 불필요한 수직 공간 제거 */
+    .form-element-spacer,
+    .structural-placeholder-label {
+        display: none;
     }
 
     #apply-filters-button-section { /* 필터 적용 버튼 왼쪽 정렬 */

@@ -395,12 +395,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (isExpanded) {
                 // 현재 확장 상태 -> 축소
                 toggleNavbarButtonEl.setAttribute('aria-expanded', 'false');
-                toggleNavbarButtonEl.innerHTML = '▼ 펴기';
+                toggleNavbarButtonEl.innerHTML = '▼ <span>펴기</span>';
                 toggleNavbarButtonEl.setAttribute('aria-label', '메뉴 펴기');
             } else {
                 // 현재 축소 상태 -> 확장
                 toggleNavbarButtonEl.setAttribute('aria-expanded', 'true');
-                toggleNavbarButtonEl.innerHTML = '▲ 접기';
+                toggleNavbarButtonEl.innerHTML = '▲ <span>접기</span>';
                 toggleNavbarButtonEl.setAttribute('aria-label', '메뉴 접기');
             }
             // 네비게이션 바 크기 변경 후 지도의 크기를 재계산하도록 지시합니다.
