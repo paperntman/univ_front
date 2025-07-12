@@ -71,8 +71,6 @@ export function initializeGradeModalDOM(elements: {
     naesinGradeFormDivs: { [key: string]: HTMLDivElement | null },
     // 간편 내신
     naesinSimplifiedForm: HTMLDivElement,
-    naesinSimplifiedGradeInput: HTMLInputElement,
-    naesinModeRadios: NodeListOf<Element>,
     // 수능
     suneungExamSelector: HTMLSelectElement,
     suneungKoreanChoice: HTMLSelectElement, suneungKoreanRaw: HTMLInputElement,
@@ -91,8 +89,6 @@ export function initializeGradeModalDOM(elements: {
     naesinSubjectRowTemplate = elements.naesinSubjectRowTemplate;
     naesinGradeFormDivs = elements.naesinGradeFormDivs;
     naesinSimplifiedForm = elements.naesinSimplifiedForm;
-    naesinSimplifiedGradeInput = elements.naesinSimplifiedGradeInput;
-    naesinModeRadios = elements.naesinModeRadios;
 
     // 수능
     suneungExamSelector = elements.suneungExamSelector;
@@ -107,18 +103,13 @@ export function initializeGradeModalDOM(elements: {
     suneungExplorer2Subject = elements.suneungExplorer2Subject;
     suneungExplorer2Raw = elements.suneungExplorer2Raw;
 
-    // 내신 모드 변경 이벤트 리스너
-    naesinModeRadios.forEach(radio => {
-        radio.addEventListener('change', handleNaesinModeChange);
-    });
-    // 간편 내신 입력 이벤트 리스너
-    if (naesinSimplifiedGradeInput) {
-        naesinSimplifiedGradeInput.addEventListener('input', collectSimplifiedNaesinGradeFromForm);
-    }
+    // DOM 요소를 가져와서 모듈 레벨 변수에 할당
+    naesinSimplifiedGradeInput = document.getElementById('naesin-simplified-grade-input') as HTMLInputElement;
+    naesinModeRadios = gradeInputModal.querySelectorAll('input[name="naesin-mode"]');
 }
 
 // 내신 입력 모드 변경 처리
-function handleNaesinModeChange(event: Event) {
+export function handleNaesinModeChange(event: Event) {
     const selectedMode = (event.target as HTMLInputElement).value as 'simplified' | 'detailed';
     setNaesinInputMode(selectedMode);
     updateNaesinFormVisibility();
@@ -396,8 +387,9 @@ export function renderNaesinGradesFromState() {
 
 // 간편 내신 입력 필드의 값을 상태에 저장
 export function collectSimplifiedNaesinGradeFromForm() {
-    if (naesinSimplifiedGradeInput) {
-        const value = parseFloat(naesinSimplifiedGradeInput.value);
+    const inputEl = document.getElementById('naesin-simplified-grade-input') as HTMLInputElement;
+    if (inputEl) {
+        const value = parseFloat(inputEl.value);
         setSimplifiedNaesinGrade(isNaN(value) ? null : value);
     }
 }
@@ -504,7 +496,7 @@ export function saveSuneungGradesToJsonFile() {
     }
 }
 
-export function loadSuneungGradesFromJsonFile(event: Event) {
+export async function loadSuneungGradesFromJsonFile(event: Event) {
     const fileInput = event.target as HTMLInputElement;
     const file = fileInput.files?.[0];
     if (!file) return;

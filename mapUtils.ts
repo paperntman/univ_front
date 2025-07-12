@@ -8,7 +8,6 @@ import { InitialUniversityData, FilteredUniversity, AdmissionTypeFilterKey, Filt
 import { INITIAL_MARKER_COLOR, INITIAL_MARKER_CLICK_MESSAGE } from './config'; // API_BASE_URL 제거
 import { fetchInitialMapData } from './api'; // mockFetch 대신 fetchInitialMapData 임포트
 import { showLoading } from './uiUtils';
-import { openSidebar } from './sidebarUtils';
 import { 
     map, setMap, // 지도 인스턴스 상태
     markersLayerGroup, setMarkersLayerGroup, // 마커 레이어 그룹 상태
@@ -17,6 +16,8 @@ import {
     currentAdmissionTypeFilter, // 현재 선택된 입시 전형 필터 상태
     currentScoreDifferenceTolerance // 점수 차이 허용 오차
 } from './state';
+
+const pinnedTooltipMarkers: Set<any> = new Set(); // 현재 고정된 툴팁이 있는 마커들을 추적
 
 // 지도를 초기화하는 함수
 export function initMap(mapDiv: HTMLElement) {
@@ -30,6 +31,24 @@ export function initMap(mapDiv: HTMLElement) {
         const newMarkersLayerGroup = L.layerGroup().addTo(leafletMap); // 마커들을 담을 레이어 그룹 생성 및 지도에 추가
         setMarkersLayerGroup(newMarkersLayerGroup); // 생성된 마커 레이어 그룹을 전역 상태에 저장
         setMap(leafletMap); // 생성된 지도 인스턴스를 전역 상태에 저장
+
+        // 지도를 클릭하면 모든 고정된 툴팁을 해제함
+        leafletMap.on('click', () => {
+            pinnedTooltipMarkers.forEach(marker => {
+                // To prevent error if tooltip is somehow already gone
+                if (marker.getTooltip() && marker.getTooltip().options.permanent) {
+                    const content = marker.getTooltip().getContent();
+                    marker.unbindTooltip();
+                    // Re-bind as a regular, non-permanent tooltip
+                    marker.bindTooltip(content, { 
+                        direction: 'top', 
+                        offset: L.point(0, -40), 
+                        interactive: true 
+                    });
+                }
+            });
+            pinnedTooltipMarkers.clear(); // Set에서 모든 마커를 제거
+        });
     }
 }
 
@@ -332,10 +351,40 @@ export function updateMarkers() {
             popupAnchor: [0, -40]
         });
         const marker = L.marker([base.location.latitude, base.location.longitude], { icon })
-            .bindTooltip(tooltipText, { direction: 'top', offset: L.point(0, -40) });
-        marker.on('click', () => {
-            openSidebar(base.universityId, base.departmentName);
+            .bindTooltip(tooltipText, {
+                direction: 'top',
+                offset: L.point(0, -40),
+                interactive: true // 툴팁 위로 마우스를 옮겨도 사라지지 않도록 설정
+            });
+        
+        marker.on('click', (e: any) => {
+            // 지도 클릭 이벤트가 즉시 발생하여 툴팁이 닫히는 것을 방지
+            L.DomEvent.stopPropagation(e);
+
+            // 클릭된 마커의 툴팁 상태를 토글
+            if (pinnedTooltipMarkers.has(marker)) {
+                // 이 툴팁은 이미 고정되어 있으므로, 일반 툴팁으로 다시 바인딩하여 고정 해제
+                marker.unbindTooltip();
+                marker.bindTooltip(tooltipText, {
+                    direction: 'top',
+                    offset: L.point(0, -40),
+                    interactive: true
+                });
+                // pinnedTooltipMarkers.delete(marker); // Set에서 제거
+            } else {
+                // 이 툴팁은 고정되어 있지 않으므로, 고정
+                marker.unbindTooltip();
+                marker.bindTooltip(tooltipText, {
+                    permanent: true, // 고정된 툴팁으로 만듦
+                    direction: 'top',
+                    offset: L.point(0, -40),
+                    interactive: true,
+                    className: 'permanent-tooltip' // 스타일링을 위한 클래스 추가
+                }).openTooltip();
+                pinnedTooltipMarkers.add(marker); // Set에 추가
+            }
         });
+
         markersLayerGroup.addLayer(marker);
     });
     // 지도 범위 조정

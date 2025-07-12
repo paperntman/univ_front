@@ -6,19 +6,20 @@ declare var XLSX: any; // SheetJS
 
 
 // 타입 임포트
-import { AdmissionTypeFilterKey, UserNaesinGrades, UserSuneungGrades, ApiNaesinGrades, UserNaesinSubject, UserSuneungSubjectDetailScore, UserSuneungSubjectExplorerScore, FilteredUniversity } from './types';
+import { AdmissionTypeFilterKey, UserNaesinGrades, UserSuneungGrades, ApiNaesinGrades, UserNaesinSubject, UserSuneungSubjectDetailScore, UserSuneungSubjectExplorerScore, FilteredUniversity, UserAllGrades } from './types';
 
 // 설정 및 상태 관리 임포트
-import { API_BASE_URL } from './config'; // API_BASE_URL은 api.ts에서 사용, 여기서는 직접 사용 안 함
+import { API_BASE_URL, DEPARTMENT_CATEGORIES } from './config'; // API_BASE_URL은 api.ts에서 사용, 여기서는 직접 사용 안 함
 import {
-    userAllGrades,
+    userAllGrades, setUserAllGrades,
     selectedDepartment, setSelectedDepartment,
     currentAdmissionTypeFilter, setCurrentAdmissionTypeFilter,
     currentScoreDifferenceTolerance, setCurrentScoreDifferenceTolerance,
     currentSidebarData, lastOpenedUniversityId,
     map, markersLayerGroup,
     currentFilteredUniversities, setCurrentFilteredUniversities,
-    naesinInputMode, simplifiedNaesinGrade // 간편 입력 모드 관련 상태 추가
+    naesinInputMode, setNaesinInputMode, // 간편 입력 모드 관련 상태 추가
+    simplifiedNaesinGrade, setSimplifiedNaesinGrade // 간편 입력 모드 관련 상태 추가
 } from './state';
 
 // API 유틸리티 임포트
@@ -34,14 +35,15 @@ import { initializeSidebarControls, openSidebar, closeSidebar, renderSidebarCont
 import { 
     initializeGradeModalDOM, openGradeModal, closeGradeModal, handleGradeModalTabClick,
     addNaesinSubjectRow, populateSuneungSubjectDropdowns,
-    saveSuneungGradesToJsonFile, loadSuneungGradesFromJsonFile, // 이름 변경됨
-    saveNaesinGradesToXlsFile, loadNaesinGradesFromXlsFile, // XLS용 함수 추가
+    saveSuneungGradesToJsonFile, loadSuneungGradesFromJsonFile,
+    saveNaesinGradesToXlsFile, loadNaesinGradesFromXlsFile,
     collectSuneungGradesFromForm,
-    collectSimplifiedNaesinGradeFromForm // 간편 내신 점수 수집 함수 추가
+    collectSimplifiedNaesinGradeFromForm,
+    handleNaesinModeChange // gradeModalUtils에서 가져옴
 } from './gradeModalUtils';
 
 // UI 유틸리티 임포트
-import { initializeUiUtilsDOM, showLoading } from './uiUtils';
+import { initializeUiUtilsDOM, showLoading, applyDepartmentSelection, closeDepartmentSelectModal, restoreDepartmentModalState, handleMajorCategoryChange, handleMediumCategoryChange } from './uiUtils';
 
 
 // --- DOM 요소 ---
@@ -139,6 +141,88 @@ const closeTableModalButtonEl = document.getElementById('close-table-modal-butto
 let currentSortKey: string = 'universityName';
 let currentSortDirection: 'asc' | 'desc' = 'asc';
 let currentTableData: FilteredUniversity[] = [];
+
+
+// --- 상태 저장/불러오기 ---
+const LOCAL_STORAGE_KEY = 'universityMapAppState';
+
+interface AppStateToSave {
+    selectedDepartment: string | null;
+    userAllGrades: UserAllGrades;
+    admissionTypeFilter: AdmissionTypeFilterKey;
+    scoreDifferenceTolerance: number;
+    detailedAdmissionFilter: string;
+    naesinInputMode: 'simplified' | 'detailed';
+    simplifiedNaesinGrade: number | null;
+    departmentModalState?: {
+        majorCategory: string;
+        mediumCategory: string;
+        minorCategory: string;
+    };
+}
+
+function saveState() {
+    const stateToSave: AppStateToSave = {
+        selectedDepartment: selectedDepartment,
+        userAllGrades: userAllGrades,
+        admissionTypeFilter: currentAdmissionTypeFilter,
+        scoreDifferenceTolerance: currentScoreDifferenceTolerance,
+        detailedAdmissionFilter: detailedAdmissionFilterEl.value,
+        naesinInputMode: naesinInputMode,
+        simplifiedNaesinGrade: simplifiedNaesinGrade,
+        departmentModalState: {
+            majorCategory: majorCategorySelectEl.value,
+            mediumCategory: mediumCategorySelectEl.value,
+            minorCategory: minorCategorySelectEl.value
+        }
+    };
+    try {
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(stateToSave));
+        console.log("App state saved to localStorage.");
+    } catch (error) {
+        console.error("Could not save app state to localStorage", error);
+    }
+}
+
+function loadState() {
+    const savedStateJSON = localStorage.getItem(LOCAL_STORAGE_KEY);
+    if (!savedStateJSON) return;
+
+    try {
+        const savedState = JSON.parse(savedStateJSON) as AppStateToSave;
+
+        // 상태 변수 복원
+        if (savedState.selectedDepartment) setSelectedDepartment(savedState.selectedDepartment);
+        if (savedState.userAllGrades) setUserAllGrades(savedState.userAllGrades);
+        if (savedState.admissionTypeFilter) setCurrentAdmissionTypeFilter(savedState.admissionTypeFilter);
+        if (savedState.scoreDifferenceTolerance !== undefined) setCurrentScoreDifferenceTolerance(savedState.scoreDifferenceTolerance);
+        if (savedState.naesinInputMode) setNaesinInputMode(savedState.naesinInputMode);
+        if (savedState.simplifiedNaesinGrade !== undefined) setSimplifiedNaesinGrade(savedState.simplifiedNaesinGrade);
+        
+        // UI 요소 업데이트
+        if (openDepartmentSearchModalButtonEl && savedState.selectedDepartment) {
+            const foundDept = DEPARTMENT_CATEGORIES.find(d => (d.majorCode + d.mediumCode + d.minorCode) === savedState.selectedDepartment);
+            if (foundDept) {
+                let deptName = foundDept.minorName !== 'N.C.E' ? foundDept.minorName : (foundDept.mediumName !== 'N.C.E' ? foundDept.mediumName : foundDept.majorName);
+                openDepartmentSearchModalButtonEl.textContent = deptName;
+            }
+        }
+        admissionTypeFilterSelectEl.value = currentAdmissionTypeFilter;
+        scoreDifferenceToleranceInputEl.value = currentScoreDifferenceTolerance.toString();
+        scoreDifferenceToleranceSliderEl.value = currentScoreDifferenceTolerance.toString();
+        detailedAdmissionFilterEl.value = savedState.detailedAdmissionFilter || "";
+        
+        // 학과 선택 모달 드롭다운 상태 복원
+        if (savedState.departmentModalState) {
+            restoreDepartmentModalState(savedState.departmentModalState);
+        }
+
+        console.log("App state loaded from localStorage.");
+    } catch (error) {
+        console.error("Could not load or parse app state from localStorage", error);
+        localStorage.removeItem(LOCAL_STORAGE_KEY); // 손상된 데이터 삭제
+    }
+}
 
 
 // --- 메인 애플리케이션 로직 및 이벤트 핸들러 ---
@@ -405,7 +489,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         majorCategorySelect: majorCategorySelectEl,
         mediumCategorySelect: mediumCategorySelectEl,
         minorCategorySelect: minorCategorySelectEl,
-        applyDepartmentSelectionButton: applyDepartmentSelectionButtonEl,
         closeDepartmentModalButton: closeDepartmentModalButtonEl,
         openDepartmentSearchModalButton: openDepartmentSearchModalButtonEl
     });
@@ -420,8 +503,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         naesinGradeFormDivs: naesinGradeFormDivsEls,
         // 간편 내신
         naesinSimplifiedForm: naesinSimplifiedFormEl,
-        naesinSimplifiedGradeInput: naesinSimplifiedGradeInputEl,
-        naesinModeRadios: naesinModeRadiosEl,
         // 수능
         suneungExamSelector: suneungExamSelectorEl,
         suneungKoreanChoice: suneungKoreanChoiceEl, suneungKoreanRaw: suneungKoreanRawEl, 
@@ -431,6 +512,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         suneungExplorer1Subject: suneungExplorer1SubjectEl, suneungExplorer1Raw: suneungExplorer1RawEl, 
         suneungExplorer2Subject: suneungExplorer2SubjectEl, suneungExplorer2Raw: suneungExplorer2RawEl, 
     });
+    
+    // 페이지 로드 시 상태 복원
+    loadState();
     
     if (mapDivEl) initMap(mapDivEl); 
     else console.error("Map container not found!");
@@ -467,10 +551,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // 슬라이더/입력값 동기화 범위 0.0~8.0, step 0.1로 변경.
-    scoreDifferenceToleranceInputEl.value = currentScoreDifferenceTolerance.toString();
-    scoreDifferenceToleranceSliderEl.value = currentScoreDifferenceTolerance.toString();
-    admissionTypeFilterSelectEl.value = currentAdmissionTypeFilter;
-
     scoreDifferenceToleranceInputEl.setAttribute('min', '0.0');
     scoreDifferenceToleranceInputEl.setAttribute('max', '8.0');
     scoreDifferenceToleranceInputEl.setAttribute('step', '0.1');
@@ -484,35 +564,33 @@ document.addEventListener('DOMContentLoaded', async () => {
             setCurrentScoreDifferenceTolerance(value);
             scoreDifferenceToleranceSliderEl.value = value.toString();
             updateMarkers(); // 프론트엔드 필터링 적용
+            saveState();
         } else {
             (e.target as HTMLInputElement).value = currentScoreDifferenceTolerance.toString();
             alert('유효한 내신 성적 범위를 입력해주세요 (0.0 ~ 8.0).');
         }
     });
 
-    // 사용자가 슬라이더를 드래그하는 동안 숫자 입력을 시각적으로 업데이트합니다 (UX 개선).
-    // 이 이벤트는 상태를 변경하거나 지도를 업데이트하지 않습니다.
     scoreDifferenceToleranceSliderEl.addEventListener('input', (e) => {
         scoreDifferenceToleranceInputEl.value = (e.target as HTMLInputElement).value;
     });
 
-    // 사용자가 슬라이더에서 마우스를 떼었을 때 실제 상태 업데이트와 지도 필터링을 트리거합니다.
     scoreDifferenceToleranceSliderEl.addEventListener('change', (e) => {
         const value = parseFloat((e.target as HTMLInputElement).value);
         setCurrentScoreDifferenceTolerance(value);
         updateMarkers(); // 프론트엔드 필터링 적용
+        saveState();
     });
 
 
     admissionTypeFilterSelectEl.addEventListener('change', (e) => {
         setCurrentAdmissionTypeFilter((e.target as HTMLSelectElement).value as AdmissionTypeFilterKey);
-        // 전형 필터 변경 시에는 API를 다시 호출해야 하므로 '필터 적용' 버튼을 누르도록 유도.
-        // 마커 자동 갱신은 하지 않음.
         if (sidebarDivEl.classList.contains('visible') && currentSidebarData && lastOpenedUniversityId) {
             openSidebar(lastOpenedUniversityId, currentSidebarData.departmentName);
         } else if (currentSidebarData) {
             renderSidebarContentUtil();
         }
+        saveState();
     });
 
 
@@ -520,21 +598,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     applyFiltersButtonEl.addEventListener('click', handleFilterUpdate); 
     
     // 세부 전형 필터 이벤트 리스너 추가
-    detailedAdmissionFilterEl.addEventListener('change', handleFilterUpdate);
+    detailedAdmissionFilterEl.addEventListener('change', () => {
+        saveState();
+        handleFilterUpdate();
+    });
     detailedAdmissionFilterEl.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
             e.preventDefault(); // 기본 동작(폼 제출 등) 방지
+            saveState();
             handleFilterUpdate();
         }
     });
 
     closeGradeModalButtonEl.addEventListener('click', closeGradeModal); 
     submitGradesButtonEl.addEventListener('click', () => { 
-        // 현재 활성화된 입력 방식에 따라 점수를 상태에 저장
-        collectSimplifiedNaesinGradeFromForm(); // 간편 입력 값 수집 (UI에 없어도 값은 읽음)
-        collectSuneungGradesFromForm(); // 수능 점수 수집
-        // 상세 내신은 입력 시 실시간으로 반영되므로 별도 수집 불필요
-        
+        collectSimplifiedNaesinGradeFromForm(); 
+        collectSuneungGradesFromForm(); 
+        saveState();
         closeGradeModal();
         alert("성적이 반영되었습니다. '필터 적용 및 지도 업데이트' 버튼을 클릭하여 결과를 확인하세요.");
     });
@@ -542,14 +622,58 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Suneung JSON
     saveSuneungGradesJsonButtonEl.addEventListener('click', saveSuneungGradesToJsonFile); 
     loadSuneungGradesJsonButtonEl.addEventListener('click', () => loadSuneungGradesJsonInputEl.click()); 
-    loadSuneungGradesJsonInputEl.addEventListener('change', loadSuneungGradesFromJsonFile); 
+    loadSuneungGradesJsonInputEl.addEventListener('change', async (event) => {
+        await loadSuneungGradesFromJsonFile(event);
+        saveState();
+    });
 
     // Naesin XLS
     saveNaesinGradesXlsButtonEl.addEventListener('click', saveNaesinGradesToXlsFile);
     loadNaesinGradesXlsButtonEl.addEventListener('click', () => loadNaesinGradesXlsInputEl.click());
-    loadNaesinGradesXlsInputEl.addEventListener('change', loadNaesinGradesFromXlsFile);
+    loadNaesinGradesXlsInputEl.addEventListener('change', async (event) => {
+        await loadNaesinGradesFromXlsFile(event);
+        saveState();
+    });
     
     modalTabsEl.forEach(tab => tab.addEventListener('click', handleGradeModalTabClick)); 
+
+    // 학과 선택 완료 버튼 리스너
+    applyDepartmentSelectionButtonEl.addEventListener('click', () => {
+        const success = applyDepartmentSelection();
+        if (success) {
+            saveState();
+        }
+        closeDepartmentSelectModal();
+    });
+
+    // 학과 선택 모달 드롭다운 이벤트 리스너 (상태 저장을 위해 index.tsx에서 관리)
+    majorCategorySelectEl.addEventListener('change', () => {
+        handleMajorCategoryChange();
+        saveState();
+    });
+
+    mediumCategorySelectEl.addEventListener('change', () => {
+        handleMediumCategoryChange();
+        saveState();
+    });
+    
+    minorCategorySelectEl.addEventListener('change', () => {
+        saveState(); // 소분류 변경 시에도 상태 저장
+    });
+
+    // 내신 입력 모드 변경 리스너
+    naesinModeRadiosEl.forEach(radio => {
+        radio.addEventListener('change', (event) => {
+            handleNaesinModeChange(event);
+            saveState();
+        });
+    });
+
+    // 간편 내신 점수 입력 리스너
+    naesinSimplifiedGradeInputEl.addEventListener('input', () => {
+        collectSimplifiedNaesinGradeFromForm();
+        saveState();
+    });
 
     if (naesinDetailedFormEl) {
         naesinDetailedFormEl.querySelectorAll('.add-subject-button').forEach(button => {
@@ -567,8 +691,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     suneungExamSelectorEl.addEventListener('change', async () => {
         if (suneungExamSelectorEl) {
-            collectSuneungGradesFromForm(); // Update state with new exam identifier
-                                            // This ensures userAllGrades.suneung.examIdentifierForCutInfo is up-to-date
+            collectSuneungGradesFromForm();
+            saveState();
         }
     });
 
@@ -578,11 +702,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (el) {
             const eventType = (el.tagName === 'SELECT' || el.type === 'text' || el.type === 'number') ? 'change' : 'input';
             el.addEventListener(eventType, () => { 
-                collectSuneungGradesFromForm(); // 실시간으로 userAllGrades.suneung 업데이트
+                collectSuneungGradesFromForm();
+                saveState();
             });
             if (el.type === 'number') {
                  el.addEventListener('input', () => {
-                    collectSuneungGradesFromForm(); // 숫자 입력 시에도 실시간 업데이트
+                    collectSuneungGradesFromForm();
+                    saveState();
                 });
             }
         }
@@ -609,8 +735,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
 
-    // 첫 방문 시 도움말 모달 표시
-    if (!localStorage.getItem('hasVisitedBefore')) {
+    // 첫 방문 시 도움말 모달 표시 (상태 저장 기능 추가 후에는, 이 로직이 항상 새 사용자에게만 적용됨)
+    if (!localStorage.getItem(LOCAL_STORAGE_KEY) && !localStorage.getItem('hasVisitedBefore')) {
         openHelpModal();
         localStorage.setItem('hasVisitedBefore', 'true');
     }

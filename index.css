@@ -290,6 +290,11 @@ body {
     color: white;
 }
 
+/* 클릭으로 고정된 툴팁에 대한 추가 스타일 */
+.leaflet-tooltip.permanent-tooltip {
+    border-color: #007bff; /* 파란색 테두리로 강조 */
+}
+
 /* --- 로딩 오버레이 스타일 --- */
 #loading-overlay {
     position: fixed;

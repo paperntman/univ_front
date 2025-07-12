@@ -1,4 +1,5 @@
 
+
 // 이 파일은 애플리케이션의 일반적인 UI 상호작용과 관련된 유틸리티 함수들을 담당합니다.
 // 로딩 오버레이 표시/숨김, 학과 검색 입력창의 자동 완성(추천 목록) 기능 등을 포함합니다.
 
@@ -13,7 +14,6 @@ let departmentSelectModal: HTMLDivElement | null = null;
 let majorCategorySelect: HTMLSelectElement | null = null;
 let mediumCategorySelect: HTMLSelectElement | null = null;
 let minorCategorySelect: HTMLSelectElement | null = null;
-let applyDepartmentSelectionButton: HTMLButtonElement | null = null;
 let closeDepartmentModalButton: HTMLButtonElement | null = null;
 let openDepartmentSearchModalButton: HTMLButtonElement | null = null;
 
@@ -26,7 +26,6 @@ export function initializeUiUtilsDOM(elements: {
     majorCategorySelect: HTMLSelectElement,
     mediumCategorySelect: HTMLSelectElement,
     minorCategorySelect: HTMLSelectElement,
-    applyDepartmentSelectionButton: HTMLButtonElement,
     closeDepartmentModalButton: HTMLButtonElement,
     openDepartmentSearchModalButton: HTMLButtonElement
 }) {
@@ -36,7 +35,6 @@ export function initializeUiUtilsDOM(elements: {
     majorCategorySelect = elements.majorCategorySelect;
     mediumCategorySelect = elements.mediumCategorySelect;
     minorCategorySelect = elements.minorCategorySelect;
-    applyDepartmentSelectionButton = elements.applyDepartmentSelectionButton;
     closeDepartmentModalButton = elements.closeDepartmentModalButton;
     openDepartmentSearchModalButton = elements.openDepartmentSearchModalButton;
 
@@ -46,15 +44,7 @@ export function initializeUiUtilsDOM(elements: {
     if (closeDepartmentModalButton) {
         closeDepartmentModalButton.addEventListener('click', closeDepartmentSelectModal);
     }
-    if (majorCategorySelect) {
-        majorCategorySelect.addEventListener('change', handleMajorCategoryChange);
-    }
-    if (mediumCategorySelect) {
-        mediumCategorySelect.addEventListener('change', handleMediumCategoryChange);
-    }
-    if (applyDepartmentSelectionButton) {
-        applyDepartmentSelectionButton.addEventListener('click', applyDepartmentSelection);
-    }
+    // 이벤트 리스너는 상태 저장을 위해 index.tsx에서 직접 관리합니다.
 }
 
 
@@ -90,10 +80,14 @@ function resetAndDisableDropdown(selectElement: HTMLSelectElement, placeholder: 
 export function openDepartmentSelectModal() {
     if (!departmentSelectModal || !majorCategorySelect || !mediumCategorySelect || !minorCategorySelect) return;
 
-    const majorCategories = DEPARTMENT_CATEGORIES.map(cat => cat.majorName);
-    populateDropdown(majorCategorySelect, majorCategories, "대분류 선택");
-    resetAndDisableDropdown(mediumCategorySelect, "중분류 선택");
-    resetAndDisableDropdown(minorCategorySelect, "소분류 선택");
+    // 모달을 열 때마다 초기화하는 대신, 대분류가 비어있을 때만(최초 실행 시) 채웁니다.
+    // 이렇게 하면 사용자의 선택이 유지됩니다.
+    if (majorCategorySelect.options.length <= 1) {
+        const majorCategories = DEPARTMENT_CATEGORIES.map(cat => cat.majorName);
+        populateDropdown(majorCategorySelect, majorCategories, "대분류 선택");
+        resetAndDisableDropdown(mediumCategorySelect, "중분류 선택");
+        resetAndDisableDropdown(minorCategorySelect, "소분류 선택");
+    }
     
     departmentSelectModal.classList.remove('hidden');
 }
@@ -104,7 +98,7 @@ export function closeDepartmentSelectModal() {
     }
 }
 
-function handleMajorCategoryChange() {
+export function handleMajorCategoryChange() {
     if (!majorCategorySelect || !mediumCategorySelect || !minorCategorySelect) return;
     const selectedMajorName = majorCategorySelect.value;
 
@@ -119,7 +113,7 @@ function handleMajorCategoryChange() {
     resetAndDisableDropdown(minorCategorySelect, "소분류 선택");
 }
 
-function handleMediumCategoryChange() {
+export function handleMediumCategoryChange() {
     if (!majorCategorySelect || !mediumCategorySelect || !minorCategorySelect) return;
     const selectedMajorName = majorCategorySelect.value;
     const selectedMediumName = mediumCategorySelect.value;
@@ -134,8 +128,8 @@ function handleMediumCategoryChange() {
     }
 }
 
-function applyDepartmentSelection() {
-    if (!majorCategorySelect || !mediumCategorySelect || !minorCategorySelect) return;
+export function applyDepartmentSelection(): boolean {
+    if (!majorCategorySelect || !mediumCategorySelect || !minorCategorySelect || !openDepartmentSearchModalButton) return false;
 
     const selectedMajorName = majorCategorySelect.value;
     const selectedMediumName = mediumCategorySelect.value;
@@ -184,17 +178,61 @@ function applyDepartmentSelection() {
     if (determinedCategory && finalDisplayName) {
         const departmentCode = determinedCategory.majorCode + determinedCategory.mediumCode + determinedCategory.minorCode;
         setSelectedDepartment(departmentCode);
+        openDepartmentSearchModalButton.textContent = finalDisplayName;
+        return true;
     } else {
         setSelectedDepartment(null);
+        openDepartmentSearchModalButton.textContent = '학과 검색';
         const attemptedSelection = selectedMinorName || selectedMediumName || selectedMajorName;
         if (attemptedSelection && attemptedSelection !== "") {
              alert(`선택된 '${attemptedSelection}'에 대한 정확한 학과 코드를 찾을 수 없습니다. 모든 분류(대/중/소)를 순서대로 선택했는지 확인해주세요.`);
         } else {
             alert("학과가 선택되지 않았습니다. 먼저 대분류를 선택해주세요.");
         }
+        return false;
     }
-    closeDepartmentSelectModal();
 }
+
+// 저장된 상태를 바탕으로 학과 선택 모달 드롭다운을 복원하는 함수
+export function restoreDepartmentModalState(state: { majorCategory: string, mediumCategory: string, minorCategory: string }) {
+    if (!majorCategorySelect || !mediumCategorySelect || !minorCategorySelect) return;
+    
+    const { majorCategory, mediumCategory, minorCategory } = state;
+
+    // 대분류 채우기 및 선택
+    const majorCategories = DEPARTMENT_CATEGORIES.map(cat => cat.majorName);
+    populateDropdown(majorCategorySelect, majorCategories, "대분류 선택");
+    if (majorCategory) {
+        majorCategorySelect.value = majorCategory;
+    }
+
+    // 대분류가 선택되었다면 중분류 채우기 및 선택
+    if (majorCategorySelect.value) {
+        const mediumCategories = DEPARTMENT_CATEGORIES
+            .filter(cat => cat.majorName === majorCategorySelect.value)
+            .map(cat => cat.mediumName);
+        populateDropdown(mediumCategorySelect, mediumCategories, "중분류 선택");
+        if (mediumCategory) {
+            mediumCategorySelect.value = mediumCategory;
+        }
+    } else {
+         resetAndDisableDropdown(mediumCategorySelect, "중분류 선택");
+    }
+
+    // 중분류가 선택되었다면 소분류 채우기 및 선택
+    if (mediumCategorySelect.value) {
+        const minorCategories = DEPARTMENT_CATEGORIES
+            .filter(cat => cat.majorName === majorCategorySelect.value && cat.mediumName === mediumCategorySelect.value)
+            .map(cat => cat.minorName);
+        populateDropdown(minorCategorySelect, minorCategories, "소분류 선택");
+        if (minorCategory) {
+            minorCategorySelect.value = minorCategory;
+        }
+    } else {
+        resetAndDisableDropdown(minorCategorySelect, "소분류 선택");
+    }
+}
+
 
 // 디바운스 함수 (필요시 다른 곳에서 사용 가능)
 export function debounce<F extends (...args: any[]) => any>(func: F, waitFor: number) {
