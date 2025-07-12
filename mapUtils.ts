@@ -290,36 +290,38 @@ export function updateMarkers() {
         }
 
         // =========================================================================
-        // 프론트엔드 점수차 필터링 로직
+        // 프론트엔드 점수차 필터링 로직 (수정됨)
+        // 각 세부 전형별로 점수차를 계산하여 필터링한 후, 남은 전형들로 마커를 표시합니다.
         // =========================================================================
+        let groupForDisplay = group; // 마커에 표시될 데이터 그룹 (필터링 후)
+
         if (!isCompetitionRateFilter) {
             const typeKey = typeKeyForMarkerLookup[currentAdmissionTypeFilter];
-            let diffs: number[] = [];
             
-            group.forEach(u => {
+            const filteredSubGroup = group.filter(u => {
                 const result = u.admissionTypeResults[typeKey as keyof FilteredUniversityAdmissionResults];
-                if (result && typeof result.userCalculatedScore === 'number' && typeof result.lastYearAvgConvertedScore === 'number') {
-                    diffs.push(result.userCalculatedScore - result.lastYearAvgConvertedScore);
+                
+                // 비교할 점수 데이터가 없는 경우, 최대 허용치(8)가 아니면 필터링에서 제외됩니다.
+                if (!result || typeof result.userCalculatedScore !== 'number' || typeof result.lastYearAvgConvertedScore !== 'number') {
+                    return currentScoreDifferenceTolerance >= 8;
                 }
+                
+                // 각 전형의 점수 차이가 허용치 이내인지 개별적으로 확인합니다.
+                const diff = result.userCalculatedScore - result.lastYearAvgConvertedScore;
+                return Math.abs(diff) <= currentScoreDifferenceTolerance;
             });
-
-            // 비교할 점수 데이터가 없는 경우, 최대 허용치(8)가 아니면 숨김
-            if (diffs.length === 0) {
-                if (currentScoreDifferenceTolerance < 8) {
-                    return; // 마커를 생성하지 않고 건너뜀
-                }
-            } else {
-                const avgDiff = diffs.reduce((a, b) => a + b, 0) / diffs.length;
-                // 점수 차이의 절댓값이 허용치를 초과하면 숨김
-                if (Math.abs(avgDiff) > currentScoreDifferenceTolerance) {
-                    return; // 마커를 생성하지 않고 건너뜀
-                }
+            
+            // 필터링 후 남은 전형이 없으면 이 마커는 표시하지 않습니다.
+            if (filteredSubGroup.length === 0) {
+                return;
             }
+            
+            groupForDisplay = filteredSubGroup;
         }
         // =========================================================================
         
         // 필터링을 통과한 마커만 지도에 추가
-        const { color, tooltipText } = getMarkerColorAndTooltipInfo(group, currentAdmissionTypeFilter);
+        const { color, tooltipText } = getMarkerColorAndTooltipInfo(groupForDisplay, currentAdmissionTypeFilter);
 
         const markerHtml = createMarkerIconSVG(color);
         const icon = L.divIcon({

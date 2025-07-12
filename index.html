@@ -64,14 +64,14 @@
                 </div>
                 <!-- 점수차 허용치 섹션 -->
                 <div class="nav-section input-group">
-                    <label for="score-difference-tolerance">점수차 허용치 (대학별 환산점수 기준):</label>
-                    <input type="number" id="score-difference-tolerance" min="0" max="100" step="1" value="10">
-                     <input type="range" id="score-difference-tolerance-slider" min="0" max="100" step="1" value="10">
+                    <label for="score-difference-tolerance">내신 성적 편차 범위 (0.0~8.0):</label>
+                    <input type="number" id="score-difference-tolerance" min="0.0" max="8.0" step="0.1" value="8.0">
+                     <input type="range" id="score-difference-tolerance-slider" min="0.0" max="8.0" step="0.1" value="8.0">
                 </div>
                 <!-- 세부 전형 필터 섹션 -->
                 <div class="nav-section input-group">
                     <label for="detailed-admission-filter">세부 전형 필터:</label>
-                    <input type="text" id="detailed-admission-filter" placeholder="예: 교과 지역">
+                    <input type="text" id="detailed-admission-filter" placeholder="예: 교과 지역 !논술">
                     <div class="form-element-spacer"></div> <!-- 레이아웃 정렬용 스페이서 -->
                 </div>
                 <!-- 필터 적용 버튼 섹션 -->
@@ -83,7 +83,7 @@
             </div>
 
             <!-- 네비게이션 바 접기/펴기 버튼 -->
-            <button id="toggle-navbar-button" aria-label="메뉴 접기" aria-expanded="true">▲ <span>접기</span></button>
+            <button id="toggle-navbar-button" aria-label="메뉴 접기" aria-expanded="true">▲<span>접기</span></button>
         </nav>
 
         <!-- 메인 콘텐츠 영역 (지도와 사이드바) -->
@@ -97,6 +97,17 @@
                     <!-- 대학 상세 정보가 여기에 동적으로 채워짐 -->
                 </div>
             </aside>
+            <!-- 지도 위 액션 버튼 컨테이너 -->
+            <div class="map-actions-container">
+                <!-- 도움말 버튼 -->
+                <button id="help-button" class="map-action-button" aria-label="도움말 보기">
+                    <img src="https://cdn-icons-png.flaticon.com/512/3106/3106703.png" alt="도움말 아이콘">
+                </button>
+                <!-- 표 보기 버튼 -->
+                <button id="view-table-button" class="map-action-button" aria-label="표 보기">
+                    <img src="https://cdn-icons-png.flaticon.com/512/1994/1994750.png" alt="표 아이콘">
+                </button>
+            </div>
         </main>
         <!-- 로딩 오버레이 (기본 숨김) -->
         <div id="loading-overlay" class="hidden">
@@ -104,6 +115,26 @@
             <p>로딩 중...</p>
         </div>
     </div>
+
+    <!-- 도움말 모달 (기본 숨김) -->
+    <div id="help-modal" class="modal hidden" role="dialog" aria-labelledby="help-modal-title" aria-modal="true">
+        <div class="modal-content">
+            <button id="close-help-modal-button" class="modal-close-button" aria-label="도움말 닫기">&times;</button>
+            <h3 id="help-modal-title">사용법</h3>
+            <div id="help-modal-content">
+                <ol>
+                    <li>학과 검색에서 원하는 학과를 선택합니다.</li>
+                    <li>성적을 입력합니다. (수능은 사용할 수 없음. 미구현)</li>
+                    <li>입시 전형 필터에서 원하는 정보를 선택합니다.</li>
+                    <li>(선택) 성적 편차 범위를 선택합니다. 범위가 1이고 내 성적이 3일 시, 2~4점대의 대학을 검색합니다.</li>
+                    <li>(선택) 세부 전형 필터를 선택합니다. 띄어쓰기를 통해 구분하며, "교과 지역"을 입력하면 "교과", "지역"이 들어간 전형만을 검색합니다. "!교과" 처럼 앞에 느낌표를 붙이면, 전형 중 "교과"가 들어가지 않은 전형만을 검색합니다.</li>
+                    <li>필터 적용 및 지도 업데이트 버튼을 클릭합니다.</li>
+                    <li>필요에 따라 화면 오른쪽 하단의 표 버튼을 누름으로써 결과를 표로 볼 수 있습니다. 표의 각 행을 클릭하면 해당 대학의 마커로 이동합니다.</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+
 
     <!-- 학과 선택 모달 (기본 숨김) -->
     <div id="department-select-modal" class="modal hidden" role="dialog" aria-labelledby="department-modal-title" aria-modal="true">
@@ -315,6 +346,18 @@
             </div>
         </div>
     </div>
+
+    <!-- 표 보기 모달 (기본 숨김) -->
+    <div id="table-view-modal" class="modal hidden" role="dialog" aria-labelledby="table-modal-title" aria-modal="true">
+        <div class="modal-content">
+            <button id="close-table-modal-button" class="modal-close-button" aria-label="Close table view modal">&times;</button>
+            <h3 id="table-modal-title">필터링된 대학 목록 (교과)</h3>
+            <div id="table-container">
+                <!-- 테이블이 여기에 동적으로 생성됨 -->
+            </div>
+        </div>
+    </div>
+    
     <!-- 내신 과목 행 추가를 위한 숨겨진 템플릿 -->
     <template id="naesin-subject-row-template">
         <div class="naesin-subject-row">

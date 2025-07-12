@@ -6,7 +6,7 @@ declare var XLSX: any; // SheetJS
 
 
 // 타입 임포트
-import { AdmissionTypeFilterKey, UserNaesinGrades, UserSuneungGrades, ApiNaesinGrades, UserNaesinSubject, UserSuneungSubjectDetailScore, UserSuneungSubjectExplorerScore } from './types';
+import { AdmissionTypeFilterKey, UserNaesinGrades, UserSuneungGrades, ApiNaesinGrades, UserNaesinSubject, UserSuneungSubjectDetailScore, UserSuneungSubjectExplorerScore, FilteredUniversity } from './types';
 
 // 설정 및 상태 관리 임포트
 import { API_BASE_URL } from './config'; // API_BASE_URL은 api.ts에서 사용, 여기서는 직접 사용 안 함
@@ -59,6 +59,7 @@ const closeDepartmentModalButtonEl = document.getElementById('close-department-m
 
 
 const enterGradesButtonEl = document.getElementById('enter-grades-button') as HTMLButtonElement; 
+const helpButtonEl = document.getElementById('help-button') as HTMLButtonElement;
 const admissionTypeFilterSelectEl = document.getElementById('admission-type-filter') as HTMLSelectElement; 
 const scoreDifferenceToleranceInputEl = document.getElementById('score-difference-tolerance') as HTMLInputElement; 
 const scoreDifferenceToleranceSliderEl = document.getElementById('score-difference-tolerance-slider') as HTMLInputElement; 
@@ -73,6 +74,10 @@ const loadingOverlayEl = document.getElementById('loading-overlay') as HTMLDivEl
 
 const gradeInputModalEl = document.getElementById('grade-input-modal') as HTMLDivElement; 
 const closeGradeModalButtonEl = document.getElementById('close-grade-modal-button') as HTMLButtonElement; 
+
+// 도움말 모달
+const helpModalEl = document.getElementById('help-modal') as HTMLDivElement;
+const closeHelpModalButtonEl = document.getElementById('close-help-modal-button') as HTMLButtonElement;
 
 // JSON 버튼
 const saveSuneungGradesJsonButtonEl = document.getElementById('save-suneung-grades-json-button') as HTMLButtonElement; 
@@ -122,6 +127,18 @@ const suneungExplorer1RawEl = document.getElementById('suneung-explorer1-raw') a
 const suneungExplorer2SubjectEl = document.getElementById('suneung-explorer2-subject') as HTMLSelectElement; 
 const suneungExplorer2RawEl = document.getElementById('suneung-explorer2-raw') as HTMLInputElement; 
 // const suneungExplorer2CalculatedDivEl = document.getElementById('suneung-explorer2-calculated') as HTMLDivElement; // Removed
+
+// 표 보기 관련 DOM 요소
+const viewTableButtonEl = document.getElementById('view-table-button') as HTMLButtonElement;
+const tableViewModalEl = document.getElementById('table-view-modal') as HTMLDivElement;
+const tableContainerEl = document.getElementById('table-container') as HTMLDivElement;
+const closeTableModalButtonEl = document.getElementById('close-table-modal-button') as HTMLButtonElement;
+
+
+// --- 표 보기 정렬 상태 ---
+let currentSortKey: string = 'universityName';
+let currentSortDirection: 'asc' | 'desc' = 'asc';
+let currentTableData: FilteredUniversity[] = [];
 
 
 // --- 메인 애플리케이션 로직 및 이벤트 핸들러 ---
@@ -228,6 +245,36 @@ function transformSuneungGradesForApi(suneungGrades: UserSuneungGrades): ApiSune
     };
 }
 
+// 세부 전형 필터링 로직 (포함/제외 키워드 처리)
+function applyDetailedAdmissionFilter(universities: FilteredUniversity[], filterValue: string): FilteredUniversity[] {
+    const trimmedValue = filterValue.trim();
+    if (!trimmedValue) {
+        return universities; // 필터 값이 없으면 원본 목록 반환
+    }
+
+    const allKeywords = trimmedValue.split(' ').filter(k => k.trim() !== '');
+    if (allKeywords.length === 0) {
+        return universities; // 공백만 있는 경우 원본 목록 반환
+    }
+
+    // 포함 키워드와 제외 키워드 분리
+    const includeKeywords = allKeywords.filter(k => !k.startsWith('!'));
+    const excludeKeywords = allKeywords.filter(k => k.startsWith('!')).map(k => k.substring(1)).filter(k => k); // "!" 뒤의 텍스트 추출, 빈 키워드 제외
+
+    return universities.filter(uni => {
+        if (!uni.detailAdmissionType) return false; // 세부 전형 정보가 없으면 필터링에서 제외
+        
+        // 규칙 1: 포함 키워드를 모두 포함하는지 확인
+        const includesAll = includeKeywords.every(keyword => uni.detailAdmissionType.includes(keyword));
+        
+        // 규칙 2: 제외 키워드를 하나라도 포함하는지 확인
+        const hasExcludedKeyword = excludeKeywords.some(keyword => uni.detailAdmissionType.includes(keyword));
+
+        // 최종적으로 포함 키워드는 다 가지면서, 제외 키워드는 하나도 없는 항목만 반환
+        return includesAll && !hasExcludedKeyword;
+    });
+}
+
 
 async function handleFilterUpdate() {
     if (!selectedDepartment) {
@@ -294,18 +341,9 @@ async function handleFilterUpdate() {
         let responseData = await fetchFilteredUniversitiesApi(requestPayload);
 
         // Client-side filtering based on detailed admission filter
-        const detailedFilterValue = detailedAdmissionFilterEl.value.trim();
-        if (detailedFilterValue && responseData) {
-            const keywords = detailedFilterValue.split(' ').filter(k => k.trim() !== '');
-            if (keywords.length > 0) {
-                responseData = responseData.filter(uni => {
-                    // The field for detailed admission type name is `detailAdmissionType` in the `FilteredUniversity` type
-                    if (!uni.detailAdmissionType) return false;
-                    
-                    // Check if uni.detailAdmissionType contains ALL keywords
-                    return keywords.every(keyword => uni.detailAdmissionType.includes(keyword));
-                });
-            }
+        const detailedFilterValue = detailedAdmissionFilterEl.value;
+        if (responseData) {
+             responseData = applyDetailedAdmissionFilter(responseData, detailedFilterValue);
         }
 
         // 간편 입력 모드일 경우, API 응답의 userCalculatedScore를 사용자가 입력한 값으로 덮어쓰기
@@ -340,6 +378,21 @@ async function handleFilterUpdate() {
         updateMarkers();
     }
 }
+
+
+// --- 도움말 모달 함수 ---
+function openHelpModal() {
+    if (helpModalEl) {
+        helpModalEl.classList.remove('hidden');
+    }
+}
+
+function closeHelpModal() {
+    if (helpModalEl) {
+        helpModalEl.classList.add('hidden');
+    }
+}
+
 
 // 내신 성적 편차 범위 텍스트 동기화
 const scoreDiffLabel = document.querySelector('label[for="score-difference-tolerance"]');
@@ -537,5 +590,226 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     enterGradesButtonEl.addEventListener('click', openGradeModal);
 
+    // 표 보기 관련 이벤트 리스너
+    viewTableButtonEl.addEventListener('click', openTableView);
+    closeTableModalButtonEl.addEventListener('click', closeTableView);
+    tableViewModalEl.addEventListener('click', (e) => { // 바깥 영역 클릭 시 닫기
+        if (e.target === tableViewModalEl) {
+            closeTableView();
+        }
+    });
+
+    // 도움말 모달 이벤트 리스너
+    helpButtonEl.addEventListener('click', openHelpModal);
+    closeHelpModalButtonEl.addEventListener('click', closeHelpModal);
+    helpModalEl.addEventListener('click', (e) => { // 바깥 영역 클릭 시 닫기
+        if (e.target === helpModalEl) {
+            closeHelpModal();
+        }
+    });
+
+
+    // 첫 방문 시 도움말 모달 표시
+    if (!localStorage.getItem('hasVisitedBefore')) {
+        openHelpModal();
+        localStorage.setItem('hasVisitedBefore', 'true');
+    }
+
     console.log("Application initialized with real fetch API calls.");
 });
+
+
+// --- 표 보기 모달 관련 함수 ---
+
+function closeTableView() {
+    if (tableViewModalEl) {
+        tableViewModalEl.classList.add('hidden');
+    }
+}
+
+function handleTableRowClick(event: MouseEvent) {
+    const row = (event.currentTarget as HTMLTableRowElement);
+    const lat = parseFloat(row.dataset.lat || '0');
+    const lng = parseFloat(row.dataset.lng || '0');
+
+    if (lat && lng && map) {
+        closeTableView();
+        map.flyTo([lat, lng], 15); // Zoom level 15
+    }
+}
+
+function getSortFunction() {
+    const typeKey = currentAdmissionTypeFilter === '교과' ? 'gyogwa' : 'jonghap';
+
+    return (a: FilteredUniversity, b: FilteredUniversity) => {
+        let valA: any, valB: any;
+
+        switch (currentSortKey) {
+            case 'avgScore':
+                valA = a.admissionTypeResults[typeKey]?.lastYearAvgConvertedScore;
+                valB = b.admissionTypeResults[typeKey]?.lastYearAvgConvertedScore;
+                break;
+            case 'cutScore':
+                valA = a.admissionTypeResults[typeKey]?.lastYear70CutConvertedScore;
+                valB = b.admissionTypeResults[typeKey]?.lastYear70CutConvertedScore;
+                break;
+            default: // universityName, departmentName, detailAdmissionType
+                valA = a[currentSortKey as keyof FilteredUniversity];
+                valB = b[currentSortKey as keyof FilteredUniversity];
+                break;
+        }
+
+        const isNumeric = (currentSortKey === 'avgScore' || currentSortKey === 'cutScore');
+
+        const isAInvalid = valA === null || valA === undefined || valA === '' || (isNumeric && isNaN(valA));
+        const isBInvalid = valB === null || valB === undefined || valB === '' || (isNumeric && isNaN(valB));
+
+        if (isAInvalid && isBInvalid) return 0;
+        if (isAInvalid) return 1;
+        if (isBInvalid) return -1;
+
+        let comparison = 0;
+        if (isNumeric) {
+            comparison = valA - valB;
+        } else {
+            comparison = String(valA).localeCompare(String(valB));
+        }
+
+        return currentSortDirection === 'asc' ? comparison : -comparison;
+    };
+}
+
+function handleSort(event: MouseEvent) {
+    const sortKey = (event.currentTarget as HTMLElement).dataset.sortKey;
+    if (!sortKey) return;
+
+    if (sortKey === currentSortKey) {
+        currentSortDirection = currentSortDirection === 'asc' ? 'desc' : 'asc';
+    } else {
+        currentSortKey = sortKey;
+        currentSortDirection = 'asc';
+    }
+    
+    renderTable();
+}
+
+function createTableHeader(): HTMLTableSectionElement {
+    const thead = document.createElement('thead');
+    const headerRow = document.createElement('tr');
+    
+    const headers = [
+        { key: 'universityName', name: '대학명' },
+        { key: 'departmentName', name: '학과명' },
+        { key: 'detailAdmissionType', name: '전형명' },
+        { key: 'avgScore', name: '평균' },
+        { key: 'cutScore', name: '70%컷' }
+    ];
+
+    headers.forEach(header => {
+        const th = document.createElement('th');
+        th.dataset.sortKey = header.key;
+        let headerName = header.name;
+        if (header.key === currentSortKey) {
+            headerName += currentSortDirection === 'asc' ? ' ▲' : ' ▼';
+        }
+        th.textContent = headerName;
+        th.addEventListener('click', handleSort);
+        headerRow.appendChild(th);
+    });
+
+    thead.appendChild(headerRow);
+    return thead;
+}
+
+
+function createTableBody(data: FilteredUniversity[]): HTMLTableSectionElement {
+    const tbody = document.createElement('tbody');
+    const typeKey = currentAdmissionTypeFilter === '교과' ? 'gyogwa' : 'jonghap';
+
+    data.forEach(uni => {
+        const result = uni.admissionTypeResults[typeKey];
+        const row = document.createElement('tr');
+        row.dataset.lat = uni.location.latitude.toString();
+        row.dataset.lng = uni.location.longitude.toString();
+        
+        row.innerHTML = `
+            <td>${uni.universityName || '-'}</td>
+            <td>${uni.departmentName || '-'}</td>
+            <td>${uni.detailAdmissionType || '-'}</td>
+            <td>${result?.lastYearAvgConvertedScore?.toFixed(2) ?? 'N/A'}</td>
+            <td>${result?.lastYear70CutConvertedScore?.toFixed(2) ?? 'N/A'}</td>
+        `;
+        
+        row.addEventListener('click', handleTableRowClick);
+        tbody.appendChild(row);
+    });
+    return tbody;
+}
+
+function renderTable() {
+    if (!tableContainerEl) return;
+
+    const sortedData = [...currentTableData].sort(getSortFunction());
+
+    const table = document.createElement('table');
+    const thead = createTableHeader();
+    const tbody = createTableBody(sortedData);
+
+    table.appendChild(thead);
+    table.appendChild(tbody);
+
+    tableContainerEl.innerHTML = '';
+    tableContainerEl.appendChild(table);
+}
+
+
+function openTableView() {
+    if (!tableContainerEl || !tableViewModalEl) return;
+
+    if (currentFilteredUniversities.length === 0) {
+        alert("먼저 '필터 적용'을 통해 대학 목록을 조회해주세요.");
+        return;
+    }
+
+    const admissionType = currentAdmissionTypeFilter;
+    if (admissionType !== '교과' && admissionType !== '종합') {
+        alert("표 보기는 '교과' 또는 '종합' 전형 필터에서만 사용 가능합니다.");
+        return;
+    }
+    const typeKey = admissionType === '교과' ? 'gyogwa' : 'jonghap';
+    (document.getElementById('table-modal-title') as HTMLElement).textContent = `필터링된 대학 목록 (${admissionType})`;
+
+
+    // 1. '교과' 또는 '종합' 전형 결과가 있는 대학만 필터링
+    let dataForTable = currentFilteredUniversities.filter(uni => uni.admissionTypeResults[typeKey]);
+
+    // 2. 세부 전형 필터 적용
+    const detailedFilterValue = detailedAdmissionFilterEl.value;
+    dataForTable = applyDetailedAdmissionFilter(dataForTable, detailedFilterValue);
+
+    // 3. 점수차 허용치 필터 적용
+    dataForTable = dataForTable.filter(uni => {
+        const result = uni.admissionTypeResults[typeKey];
+        
+        if (result && typeof result.userCalculatedScore === 'number' && typeof result.lastYearAvgConvertedScore === 'number') {
+            const diff = result.userCalculatedScore - result.lastYearAvgConvertedScore;
+            return Math.abs(diff) <= currentScoreDifferenceTolerance;
+        }
+        
+        return currentScoreDifferenceTolerance >= 8;
+    });
+
+    if (dataForTable.length === 0) {
+        alert(`현재 필터 조건에 맞는 '${admissionType}' 전형 데이터가 없습니다.`);
+        return;
+    }
+    
+    // 데이터 및 정렬 상태 설정 후 테이블 렌더링
+    currentTableData = dataForTable;
+    currentSortKey = 'universityName';
+    currentSortDirection = 'asc';
+    
+    renderTable();
+
+    tableViewModalEl.classList.remove('hidden');
+}
