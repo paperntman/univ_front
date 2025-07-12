@@ -2,7 +2,7 @@
 // API 기본 URL, 초기 마커 색상, 정적 데이터 목록 (예: 수능 탐구 과목) 등을 포함합니다.
 // 이 값을 변경하면 애플리케이션 전체 동작에 영향을 줄 수 있습니다.
 
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://dotorimuuk.duckdns.org/api'; // 백엔드 API의 기본 URL
+export const API_BASE_URL = 'https://dotorimuuk.duckdns.org/api'; // 백엔드 API의 기본 URL
 export const INITIAL_MARKER_COLOR = '#cccccc'; // 필터 적용 전 초기 마커 색상 (회색)
 export const INITIAL_MARKER_CLICK_MESSAGE = "학과와 성적을 입력하고 필터를 적용하여 상세 정보를 확인하세요."; // 초기 마커 클릭 시 표시될 메시지
 
