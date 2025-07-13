@@ -8,14 +8,14 @@ body {
     color: #333; /* 기본 텍스트 색상 */
     display: flex;
     flex-direction: column;
-    height: 100vh; /* 뷰포트 전체 높이 */
+    height: 100dvh; /* 뷰포트 전체 높이 (동적) */
     overflow: hidden; /* 사이드바 열렸을 때 body 스크롤 방지 */
 }
 
 #app-container {
     display: flex;
     flex-direction: column; /* 네비게이션 바를 상단에 위치시키기 위해 row에서 column으로 변경 */
-    height: 100vh;
+    height: 100dvh; /* 뷰포트 전체 높이 (동적) */
     width: 100%;
 }
 
@@ -356,7 +356,7 @@ body {
     box-shadow: 0 5px 15px rgba(0,0,0,0.3);
     width: 90%;
     max-width: 800px; /* 최대 너비 */
-    max-height: 90vh; /* 최대 높이 */
+    max-height: 90dvh; /* 최대 높이 (동적) */
     overflow-y: auto; /* 내용 많을 시 스크롤 */
     position: relative; /* 닫기 버튼 위치 기준 */
 }
@@ -744,7 +744,7 @@ body {
 }
 
 #table-container {
-    max-height: 70vh;
+    max-height: 70dvh; /* 동적 높이 */
     overflow-y: auto;
 }
 
@@ -882,7 +882,7 @@ body {
      #sidebar { /* 사이드바를 화면 하단에 배치 */
         width: 100%;
         max-width: 100%;
-        height: 60vh; /* 높이 조정 */
+        height: 60dvh; /* 높이 조정 (동적) */
         bottom: 0;
         top: auto; /* 상단 고정 해제 */
         transform: translateY(100%); /* 기본적으로 아래로 숨김 */
@@ -897,7 +897,7 @@ body {
         right: 10px;
     }
     .modal-content { /* 모달 콘텐츠 높이/패딩 조정 */
-        max-height: 85vh;
+        max-height: 85dvh; /* 동적 높이 */
         padding: 15px;
     }
     #table-view-modal .modal-content {
